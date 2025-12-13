@@ -1,3 +1,5 @@
+# Copyright (c) 2025 [687jsassd]
+# MIT License
 # 全局配置管理
 import os
 import json

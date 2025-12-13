@@ -1,3 +1,5 @@
+# Copyright (c) 2025 [687jsassd]
+# MIT License
 # 模块化提示词管理器
 from typing import Optional
 

@@ -1,3 +1,5 @@
+# Copyright (c) 2025 [687jsassd]
+# MIT License
 import uuid
 import hashlib
 from datetime import datetime
@@ -9,7 +11,7 @@ from animes import typewriter_narrative, show_loading_animation, SyncLoadingAnim
 
 config = CustomConfig()
 
-
+VERSION = "0.1.1"
 # 显示函数
 
 
@@ -78,6 +80,7 @@ def save_game(game_engine, save_name="autosave", is_manual_save=False):
 
         # 构建保存数据
         save_data = {
+            "version": VERSION,
             "game_id": game_engine.game_id,
             "timestamp": datetime.now().isoformat(),
             "player_name": game_engine.player_name,
@@ -207,6 +210,8 @@ def load_game(game_engine, save_name="autosave", filename=None, game_id=None):
             save_data = json.load(f)
 
         # 恢复游戏状态
+        if save_data["version"] != VERSION:
+            input(f"[警告]:不匹配的版本号(存档{save_data['version']} -- 游戏{VERSION})")
         game_engine.game_id = save_data["game_id"]
         game_engine.player_name = save_data["player_name"]
         game_engine.prompt_manager.prompts_sections["user_story"] = save_data["player_story"]
@@ -707,7 +712,7 @@ def new_game(no_auto_load=False):
             print(GAME.get_situation_text())
             display_options(GAME)
         print(
-            f"轮数: {turns},剧情字数: {sum([len(it) for it in GAME.history_descriptions])},Token/all:{GAME.l_c_token+GAME.l_p_token}/{GAME.total_tokens}")
+            f"字数:{sum([len(it) for it in GAME.history_descriptions])} | Token/all:{GAME.l_c_token+GAME.l_p_token}/{GAME.total_tokens} | Ver:{VERSION} | [{GAME.game_id}]")
         if show_init_resp:
             print(GAME.current_response)
             print(GAME.get_token_stats())

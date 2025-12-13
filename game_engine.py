@@ -1,3 +1,5 @@
+# Copyright (c) 2025 [687jsassd]
+# MIT License
 # 游戏引擎
 import openai
 import json
