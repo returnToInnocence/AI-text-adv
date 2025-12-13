@@ -831,7 +831,7 @@ def new_game(no_auto_load=False):
                 extra_datas["turns"] -= 1
                 continue
             content = input(
-                f"你思索某个疑问(当前思考次数还剩{int(extra_datas['think_count_remain'])}次) 不输入内容以放弃思考:\n:: ")
+                f"你思索某个疑问(思考次数还剩{int(extra_datas['think_count_remain'])}次) 不输入内容以放弃思考 注意token消耗:\n:: ")
             if content.strip() == "":
                 input("你放弃了思考.(按任意键继续)")
                 extra_datas["turns"] -= 1

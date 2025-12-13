@@ -145,13 +145,13 @@ class PromptManager:
         """获取后续提示词"""
         continuation_context = f"""
         历史: {previous_description}
+        场景：{cur_desc}
+        {situation_text}
+        {player_name}的动作:{player_choice}，
+        {"执行动作后：" if choice_preview else ""}{choice_preview}
         {inventory_text+'\n(物品名包括符号)\n'}
         {attribute_text}
-        上一轮场景：{cur_desc}
-        {situation_text}
-        {player_name}的动作是:{player_choice}，
-        {"执行动作后：" if choice_preview else ""}{choice_preview}
-        玩家的动作是不合理则避免其剧情走向。
+        玩家的动作不合理则避免其剧情走向。
         根据实际给出1-6个选项，类型不一，难度有难有易。
         生成的选项不一定会被选择，选项若需要变动物品等，不要在当前的commands里面写，而是当玩家确实选择了那选项时在下一轮写。
         经常使用指令变动物品，应符合逻辑。
@@ -184,17 +184,14 @@ class PromptManager:
         """获取思考提示词"""
         think_context = f"""
         历史: {previous_description}
-        {inventory_text}
-        {attribute_text}
         场景：{cur_desc}
         {situation_text}
-        {custom_prompt}
+        {inventory_text}
         {player_name}此时正在思考/联想:{think_context}
-        你顺延玩家的思考方向，给出符合沉浸式游戏环境的玩家思考内容。
-        玩家并非全知，思考需要参考剧情、物品、属性。
-        思考时剧情暂停，不要在思考中发展剧情、透露新场景、新物品等。
-        可以参考玩家的属性来给出不同深度的思考，但思考仍然受限。
-        不要在思考中包含任何与游戏机制相关的词（如场景描述、判定、属性等）
-        直接给出150字以内的思考内容文本，不要带有任何前缀或者后缀。
+        你顺延玩家的思考，给出沉浸式、简要的玩家思考内容。
+        玩家并非全知，思考需要参考剧情、物品、属性的现实情况。
+        思考时剧情暂停，不要在思考中发展剧情、透露新内容、补充关键信息。
+        不要在思考中包含游戏相关的词（如场景、判定、属性）
+        直接给出80字以内的思考内容文本，不要带有任何前缀后缀。
         """
         return think_context

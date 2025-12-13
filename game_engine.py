@@ -463,6 +463,7 @@ class GameEngine:
             self.history_simple_summaries = [
                 i for i in self.history_simple_summaries if i and len(i) >= 450] + [summary]
             self.conclude_summary_cooldown = 10
+            self.token_consumes[-1] += self.l_p_token+self.l_c_token
             return 0
         if is_custom:
             selected_option = {"id": 999,
@@ -605,7 +606,7 @@ class GameEngine:
         self.current_description += "\n\n" + \
             COLOR_BLUE+f"[思考:{think_context}] "+COLOR_RESET+res
         self.history_descriptions[-1] = self.current_description
-        self.token_consumes.append(self.l_p_token+self.l_c_token)
+        self.token_consumes[-1] += self.l_p_token+self.l_c_token
         self.anime_loader.stop_animation()  # type:ignore
         return 0
 
