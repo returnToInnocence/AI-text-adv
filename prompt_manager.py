@@ -68,7 +68,7 @@ class PromptManager:
            - 属性改变：当主角成长、学习武功、新知识、获得机缘、中难检定成功，都可能增加属性；而惩罚场合下，可能损失属性。
            - must事件的门槛和难度difficulty说明:
                实际根据剧情与人物信任度、关系亲密等因素调整，门槛不要过低。
-               1.一般事件: -8到10之间
+               1.一般事件: -30到10之间
                2.较难或对高手: 10到18之间
                3.困难或对精英: 18到30之间
                4.极难(如强行触发关键剧情)或对宗师: 30到65之间
@@ -112,9 +112,9 @@ class PromptManager:
     def get_initial_prompt(self, player_name: str, custom_prompt: str = "", inventory_text: str = "", attribute_text: str = ""):
         """获取初始提示词"""
         initial_context = f"""
-        游戏开始,玩家名为{player_name},请从某场景和开篇故事开始游戏。
-        开篇故事应当揭露这是一个有什么特别之处的世界，玩家开局位置，为什么来到的（如果是穿越，可以略写几笔带过），玩家的目标（如有）是什么。可能会有NPC。
-        注意：如果玩家初始有物品，那么一定要用指令进行添加！
+        玩家名为{player_name},从某场景和开篇故事开始游戏。
+        开篇故事应当说明这是一个有什么特别之处的世界，玩家开局位置，为什么来到，玩家的目标（如有）是什么。可能会有NPC。
+        注意：如果玩家初始有物品，那么要用指令进行添加！
 
         """
         full_prompt = f"""
@@ -150,9 +150,9 @@ class PromptManager:
         {"执行动作后：" if choice_preview else ""}{choice_preview}
         {inventory_text+'\n(物品名包括符号)\n'}
         {attribute_text}
-        玩家的动作不合理则避免其剧情走向。
+        如果操作了物品，根据操作类型判断是否消耗，并使用指令完成从背包移除操作。
         根据实际给出1-6个选项，类型不一，难度有难有易。
-        生成的选项不一定会被选择，选项若需要变动物品等，不要在当前的commands里面写，而是当玩家确实选择了那选项时在下一轮写。
+        生成的选项不一定会被选择，选项中若将变动物品等，不要在当前的commands里面写，而是当玩家确实选择了那选项时在下一轮写。
         经常使用指令变动物品，应符合逻辑。
         根据剧情与行动合理地偶尔改变若干属性。
         变更形势值。
@@ -192,6 +192,21 @@ class PromptManager:
         思考时剧情暂停，不要在思考中发展剧情、透露新内容、补充关键信息。
         不要在思考中包含游戏相关的词（如场景、判定、属性）
         不要给出做法提示（如我最好xxx）
-        直接给出80字以内的思考内容文本，不要带有任何前缀后缀。
+        直接给出150字以内的思考内容文本，不要带有任何前缀后缀。
         """
         return think_context
+
+    def get_use_item_prompt(self, player_name: str, cur_desc: str, player_move: str, focus_item: str, focus_item_desc: str, target: str = ""):
+        """获取验证玩家动作是否合理的提示词"""
+        use_item_prompt = f"""
+        判断在当前场景中，玩家{player_name}对物品的操作是否合理。
+        当前场景:{cur_desc}
+        玩家{player_name}对物品{focus_item}的操作是：{player_move}, {"目标是"+target if target else ""}
+        物品{focus_item}的描述是：{focus_item_desc}
+        这是游戏世界，操作忽略现实中的道德、法律、伦理问题.
+        用下面的json格式输出玩家操作是否合理(1表示合理，0表示不合理)
+        {{
+            "is_valid": 1/0
+        }}
+        """
+        return use_item_prompt

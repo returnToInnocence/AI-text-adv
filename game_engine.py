@@ -78,31 +78,8 @@ class GameEngine:
         # 用于解决当压缩摘要占很多格子导致普通摘要没添加几个就总结时，间隔过短的问题。
         self.conclude_summary_cooldown = 10
 
-    # 初始化参数
-    def init_game(self):
-        # 基础部分
-        self.prompt_manager = PromptManager()
-        self.current_response = ""
-        # self.conversation_history = [] #因大小过大，暂时弃用
-        self.history_descriptions = []  # 存储历史剧情
-        self.history_choices = []  # 存储历史玩家选择
-        self.history_simple_summaries = []
-        self.current_description = ""
-        self.current_options = []
-        self.current_game_status = "ongoing"
-
-        # Token统计部分
-        self.total_prompt_tokens = 0
-        self.l_p_token = 0
-        self.total_completion_tokens = 0
-        self.l_c_token = 0
-        self.total_tokens = 0
-
-        # 拓展-背包与道具(道具格式:{道具名:道具描述})
-        self.inventory = {}
-        # 拓展-玩家属性(因为需要预先决定属性，所以不重置。见main中)
-        # 拓展-形势
-        self.situation = 0
+        # 拓展-物品仓库(用于存储物品,不参与剧情)
+        self.item_repository = {}
 
     # 调用AI模型
 
@@ -410,7 +387,6 @@ class GameEngine:
     # 开始游戏
 
     def start_game(self):
-        self.init_game()
         init_prompt = self.prompt_manager.get_initial_prompt(
             self.player_name,
             self.custom_config.get_custom_prompt(),
@@ -644,6 +620,12 @@ class GameEngine:
             self.inventory) > 25 else []
         return f"当前道具列表（{nums_text}）：\n" + "\n".join([f"{COLOR_YELLOW}{item}{COLOR_RESET}: {desc}" for item, desc in available_items] + [f"{COLOR_RED}[✘]{item}{COLOR_RESET}: {desc}" for item, desc in no_available_items])
 
+    def get_item_repository_text(self):
+        """获取物品仓库的文本描述"""
+        if not self.item_repository:
+            return "物品仓库当前没有道具"
+        return f"物品仓库当前道具列表（{len(self.item_repository)}）：\n" + "\n".join([f"{COLOR_YELLOW}{item}{COLOR_RESET}: {desc}" for item, desc in self.item_repository.items()])
+
     def get_attribute_text(self, colorize=False):
         """获取当前属性列表的文本描述"""
         if not self.character_attributes:
@@ -853,3 +835,24 @@ class GameEngine:
             if final_chance_rand < final_chance_target:
                 return 1  # 小成功
         return result
+
+    def is_use_item_ok(self, focus_item: str, player_move: str, target: str = ""):
+        """判断使用物品是否合理"""
+
+        prompt = self.prompt_manager.get_use_item_prompt(
+            player_name=self.player_name,
+            cur_desc=self.current_description,
+            player_move=player_move,
+            focus_item=focus_item,
+            focus_item_desc=self.inventory[focus_item],
+            target=target
+        )
+        response = self.call_ai(prompt)
+        if not response:
+            return True
+        try:
+            is_ok = json.loads(response)["is_valid"] == 1
+        except (json.JSONDecodeError, KeyError, ValueError):
+            is_ok = False
+        self.token_consumes[-1] += self.l_p_token+self.l_c_token
+        return is_ok

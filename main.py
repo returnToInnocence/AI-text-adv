@@ -11,7 +11,7 @@ from animes import typewriter_narrative, show_loading_animation, SyncLoadingAnim
 
 config = CustomConfig()
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 
 extra_datas = {
     "turn": 0,
@@ -484,7 +484,7 @@ def get_user_input_and_go(GAME: GameEngine):
         loader = show_loading_animation("dot", message="整理中")
         loader.stop_animation()  # type:ignore
         user_input = input(":: ")
-        if user_input in ['exit', 'think', 'inv', 'attr', 'add_item', 'remove_item', 'conclude_summary', 'help', 'summary', 'save', 'load', 'new', 'config', 'show_init_resp', 'fix_item_name', 'ana_token']:
+        if user_input in ['exit', 'opi', 'think', 'inv', 'attr', 'add_item', 'remove_item', 'conclude_summary', 'help', 'summary', 'save', 'load', 'new', 'config', 'show_init_resp', 'fix_item_name', 'ana_token']:
             return user_input
         if user_input.isdigit() and 1 <= int(user_input) <= len(GAME.current_options):
             display_narrative(
@@ -579,6 +579,68 @@ def config_game():
             else:
                 print("无效的选项ID，请重新输入。")
                 continue
+
+
+def operate_item(GAME: GameEngine):
+    while True:
+        clear_screen()
+        print(GAME.current_description)
+        print("当前物品:" + GAME.get_inventory_text())
+        print("仓库物品:" + GAME.get_item_repository_text())
+        print("\n物品操作")
+        print("输入 '被操作的物品名 进行什么操作 对哪个目标'以操作物品, 例如:'石子 投掷 梅超风'表示对梅超风投掷石子 ")
+        print("输入 '*remove 物品名' 以销毁物品(不会推进剧情)")
+        print("输入 '*put 物品名' 以存储物品(不会推进剧情,只有前25个物品会参与剧情，无用物品请进行存储)")
+        print("输入 '*get 物品名' 以从存储获得物品(不会推进剧情)")
+        print("exit. 退出物品操作")
+        user_input = input("输入操作:\n::")
+        if user_input == "exit":
+            break
+        elif user_input.startswith("*remove"):
+            item_name = user_input.split("*remove")[1].strip()
+            if item_name in GAME.inventory:
+                del GAME.inventory[item_name]
+                print(f"物品 {item_name} 已被销毁")
+            else:
+                print(f"物品 {item_name} 不存在于你的库存中")
+        elif user_input.startswith("*put"):
+            item_name = user_input.split("*put")[1].strip()
+            if item_name in GAME.inventory:
+                GAME.item_repository[item_name] = GAME.inventory[item_name]
+                del GAME.inventory[item_name]
+                print(f"物品 {item_name} 已被存储")
+            else:
+                print(f"物品 {item_name} 不存在于你的库存中")
+        elif user_input.startswith("*get"):
+            item_name = user_input.split("*get")[1].strip()
+            if item_name in GAME.item_repository:
+                GAME.inventory[item_name] = GAME.item_repository[item_name]
+                del GAME.item_repository[item_name]
+                print(f"物品 {item_name} 已被获得")
+            else:
+                print(f"物品 {item_name} 不存在于物品仓库中")
+        else:
+            itemname, action, target = user_input.split()
+            if itemname in GAME.inventory:
+                print("等待合理性判定...")
+                if GAME.is_use_item_ok(itemname, action, target):
+                    print("操作合理，正在执行...")
+                    GAME.go_game(
+                        f"对{target}使用背包里的物品{itemname}进行{action}操作", True)
+                    return True
+                else:
+                    print("警告:操作不合理,仍要执行吗? (y/n)")
+                    user_confirm = input()
+                    if user_confirm.lower() == "y":
+                        print("正在执行...")
+                        GAME.go_game(
+                            f"对{target}使用背包里的物品{itemname}进行{action}操作 (操作不合理!)", True)
+                        return True
+                    else:
+                        print("操作已取消")
+            else:
+                print(f"物品 {itemname} 不存在于你的库存中")
+    return False
 
 
 def analyze_token_consume(GAME: GameEngine):
@@ -716,6 +778,12 @@ def new_game(no_auto_load=False):
             GAME.game_id = generate_game_id()
     no_repeat_sign = False  # 运行指令后，原本的文字不再打字机效果输出
 
+    def init_turn_datas():
+        global no_repeat_sign, extra_datas
+        no_repeat_sign = False
+        extra_datas["think_count_remain"] = int(max(
+            min(GAME.character_attributes["INT"]//8, 4), -1)) + 1  # 重置思考次数
+
     while GAME.current_game_status == "ongoing":
         extra_datas["turns"] += 1
         clear_screen()
@@ -746,6 +814,13 @@ def new_game(no_auto_load=False):
             return 'exit'
         elif user_input == "inv":
             print(GAME.get_inventory_text())
+            extra_datas["turns"] -= 1
+            input("按任意键继续...")
+            continue
+        elif user_input == "opi":
+            if operate_item(GAME):
+                init_turn_datas()
+                continue
             extra_datas["turns"] -= 1
             input("按任意键继续...")
             continue
@@ -864,9 +939,7 @@ def new_game(no_auto_load=False):
             input("按任意键继续...")
             continue
         else:
-            no_repeat_sign = False  # 推进了剧情，重新启用打字机效果
-            extra_datas["think_count_remain"] = int(max(
-                min(GAME.character_attributes["INT"]//8, 4), -1)) + 1  # 重置思考次数
+            init_turn_datas()
 
     clear_screen()
     print("游戏结束,下面是你本局游戏的摘要")
