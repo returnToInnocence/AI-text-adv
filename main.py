@@ -127,6 +127,7 @@ def save_game(game_engine, save_name="autosave", is_manual_save=False):
             "token_consumes": game_engine.token_consumes,
             "extra_datas": extra_datas,
             "item_repo": game_engine.item_repository,
+            "is_no_options": game_engine.prompt_manager.is_no_options,
         }
 
         # 生成文件名
@@ -152,7 +153,7 @@ def save_game(game_engine, save_name="autosave", is_manual_save=False):
 
         return True, f"游戏已保存到 {game_engine.game_id}/{filename}"
 
-    except Exception as e:
+    except Exception as e:  # type:ignore
         return False, f"保存失败: {str(e)}"
 
 
@@ -173,7 +174,7 @@ def manage_auto_saves(game_save_dir, save_name="autosave"):
                 filepath = os.path.join(game_save_dir, filename)
                 os.remove(filepath)
 
-    except Exception as e:
+    except Exception as e:  # type:ignore
         print(f"自动存档管理失败: {e}")
 
 
@@ -242,6 +243,8 @@ def load_game(game_engine, save_name="autosave", filename=None, game_id=None):
         game_engine.situation = save_data["situation_value"]
         game_engine.token_consumes = save_data["token_consumes"]
         game_engine.item_repository = save_data["item_repo"]
+        extra_datas = save_data["extra_datas"]
+        game_engine.prompt_manager.is_no_options = save_data["is_no_options"]
 
         # 恢复配置
         config_data = save_data["custom_config"]
@@ -259,13 +262,12 @@ def load_game(game_engine, save_name="autosave", filename=None, game_id=None):
         game_engine.custom_config.base_urls_choice = config_data["base_urls_choice"]
         game_engine.custom_config.model_names_choice = config_data["model_names_choice"]
         game_engine.custom_config.api_keys_choice = config_data["api_keys_choice"]
-        extra_datas = save_data["extra_datas"]
 
         timestamp = datetime.fromisoformat(
             save_data["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
         return True, save_data['total_turns'], f"游戏已加载 (游戏ID: {save_data['game_id']}, 保存时间: {timestamp})"
 
-    except Exception as e:
+    except Exception as e:  # type:ignore
         return False, 0, f"加载失败: {str(e)}"
 
 
@@ -298,7 +300,8 @@ def find_latest_save(save_dir, save_name="autosave"):
                     if latest_time is None or save_time > latest_time:
                         latest_time = save_time
                         latest_save = latest_file
-                except:
+                except (json.JSONDecodeError, ValueError, TypeError) as e:
+                    print(f"解析保存文件时出错: {e}, 文件: {latest_file}")
                     continue
 
     return latest_save
@@ -350,7 +353,7 @@ def list_saves():
         save_info.sort(key=lambda x: x["timestamp"], reverse=True)
         return save_info
 
-    except Exception as e:
+    except Exception as e:  # type:ignore
         print(f"列出保存文件时出错: {e}")
         return []
 
@@ -367,7 +370,7 @@ def delete_save(game_id, filename):
         else:
             return False, f"保存文件 {game_id}/{filename} 不存在"
 
-    except Exception as e:
+    except Exception as e:  # type:ignore
         return False, f"删除失败: {str(e)}"
 
 # 手动保存函数（供用户调用）
@@ -436,6 +439,10 @@ def display_narrative(narr: str):
 
 
 def display_options(GAME: GameEngine):
+    if GAME.prompt_manager.is_no_options:
+        print("输入help 查看帮助")
+        print('-'*30)
+        return
     has_danger, has_event, has_goods = False, False, False
     options, chara_attrs, situation = GAME.current_options, GAME.character_attributes, GAME.situation
     print("\n" + "你准备：")
@@ -490,15 +497,17 @@ def get_user_input_and_go(GAME: GameEngine):
         loader = show_loading_animation("dot", message="整理中")
         loader.stop_animation()  # type:ignore
         user_input = input(":: ")
-        if user_input in ['exit', 'opi', 'think', 'inv', 'attr', 'conclude_summary', 'help', 'summary', 'save', 'load', 'new', 'config', 'show_init_resp', 'fix_item_name', 'ana_token']:
+        if user_input in ['exit', 'csmode', 'opi', 'think', 'inv', 'attr', 'conclude_summary', 'help', 'summary', 'save', 'load', 'new', 'config', 'show_init_resp', 'fix_item_name', 'ana_token']:
             return user_input
         if user_input.isdigit() and 1 <= int(user_input) <= len(GAME.current_options):
             display_narrative(
                 GAME.current_options[int(user_input)-1]['next_preview'])
-        if user_input == "custom":
-            custom_action = input("你决定：")
-            if GAME.go_game(custom_action, is_custom=True) == -1:
-                print("自定义行动无效，请重新输入。")
+        if user_input == "custom" or GAME.prompt_manager.is_no_options:
+            custom_action = input("你决定 (输入空内容以取消,输入0以使用刚刚输入的内容作为行动)：")
+            if custom_action == "0":
+                custom_action = user_input
+            if custom_action.strip() == "" or GAME.go_game(custom_action, is_custom=True) == -1:
+                print("自定义行动无效")
                 continue
             return custom_action
         if not user_input.isdigit() or GAME.go_game(user_input) == -1:
@@ -842,6 +851,9 @@ def new_game(no_auto_load=False):
                 GAME.character_attributes[key] = val
             break
         print(GAME.get_attribute_text(colorize=True))
+        tmp = input("以自定义模式开局？(y/n)")
+        if tmp.strip() == "y":
+            GAME.prompt_manager.is_no_options = True
         GAME.game_id = input("为本局游戏命名(或留空)：\n::").strip()
         st_story = input('输入开局故事(留空随机）:\n:: ')
         anime_loader.start_animation("spinner", message="*等待<世界>回应*")
@@ -867,13 +879,12 @@ def new_game(no_auto_load=False):
         print_all_history(GAME)
         if not no_repeat_sign:
             display_narrative(GAME.current_description)
-            print(GAME.get_situation_text())
-            display_options(GAME)
             no_repeat_sign = True
         else:
             print(GAME.current_description)
-            print(GAME.get_situation_text())
-            display_options(GAME)
+        print(GAME.get_situation_text())
+        display_options(GAME)
+
         print(
             f"字数:{sum([len(it) for it in GAME.history_descriptions])} | Token/all:{GAME.l_c_token+GAME.l_p_token}/{GAME.total_tokens} | Ver:{VERSION} | [{GAME.game_id}]")
         if show_init_resp:
@@ -889,6 +900,12 @@ def new_game(no_auto_load=False):
 
         if user_input == "exit":
             return 'exit'
+        elif user_input == "csmode":
+            GAME.prompt_manager.is_no_options = not GAME.prompt_manager.is_no_options
+            print(f"自定义模式{'开启' if GAME.prompt_manager.is_no_options else '关闭'}")
+            extra_datas["turns"] -= 1
+            input("按任意键继续...")
+            continue
         elif user_input == "inv":
             print(GAME.get_inventory_text())
             extra_datas["turns"] -= 1
@@ -975,21 +992,23 @@ def new_game(no_auto_load=False):
         elif user_input == "help":
             extra_datas["turns"] -= 1
             print("可用指令：")
-            print("exit: 退出游戏")
-            print("inv: 查看道具")
-            print('opi:进行道具操作')
-            print('summary:查看摘要')
-            print('conclude_summary:手动总结当前摘要(不推荐)')
-            print('save:保存游戏')
-            print('load:读取游戏')
-            print('new:新游戏')
-            print('config:配置游戏')
-            print('custom:自定义行动')
-            print('think:思考/联想')
-            print('attr:显示属性')
-            print('ana_token:统计token数据')
-            print('fix_item_name:修复道具名中的错误')
-            print('show_init_resp:切换显示AI的原始相应与Token信息(debug)')
+            print(f"{COLOR_GREEN}save{COLOR_RESET}:保存游戏")
+            print(f"{COLOR_GREEN}load{COLOR_RESET}:读取游戏")
+            print(f"{COLOR_GREEN}new{COLOR_RESET}:新游戏")
+            print(f"{COLOR_GREEN}config{COLOR_RESET}:配置游戏")
+            print(f"{COLOR_GREEN}exit{COLOR_RESET}: 退出游戏")
+            print(f"{COLOR_YELLOW}inv{COLOR_RESET}: 查看道具")
+            print(f"{COLOR_YELLOW}opi{COLOR_RESET}:进行道具操作")
+            print(f"{COLOR_YELLOW}custom{COLOR_RESET}:自定义行动")
+            print(f"{COLOR_YELLOW}csmode{COLOR_RESET}:切换自定义模式")
+            print(f"{COLOR_YELLOW}think{COLOR_RESET}:思考/联想")
+            print(f"{COLOR_YELLOW}attr{COLOR_RESET}:显示属性")
+            print(f"{COLOR_YELLOW}summary{COLOR_RESET}:查看摘要")
+            print(f"{COLOR_RED}conclude_summary{COLOR_RESET}:手动总结当前摘要(不推荐)")
+            print(f"{COLOR_RED}ana_token{COLOR_RESET}:统计token数据")
+            print(f"{COLOR_RED}fix_item_name{COLOR_RESET}:修复道具名中的错误")
+            print(
+                f"{COLOR_RED}show_init_resp{COLOR_RESET}:切换显示AI的原始相应与Token信息(debug)")
             input("按任意键继续...")
             continue
         else:

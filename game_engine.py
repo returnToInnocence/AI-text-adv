@@ -83,6 +83,9 @@ class GameEngine:
         # 拓展-物品仓库(用于存储物品,不参与剧情)
         self.item_repository = {}
 
+        # 拓展-是否无选项模式
+        self.prompt_manager.is_no_options = False
+
     # 调用AI模型
 
     def call_ai(self, prompt: str):
@@ -145,7 +148,7 @@ class GameEngine:
                     # 提取完整的JSON部分
                     self.current_response = self.current_response[start_idx:end_idx+1]
                     return self.current_response
-        except Exception as e:
+        except (openai.OpenAIError, ValueError) as e:
             print(f"调用AI模型时出错: {e}")
             input()
             return None
@@ -185,14 +188,24 @@ class GameEngine:
                     commands = json_response.get(
                         "commands", [])
                     self.handle_command(commands)
-            except Exception as e:
+            except (ValueError, TypeError) as e:
                 print(f"解析指令时出错: {e}")
                 input("已跳过指令处理,按任意键继续解析")
 
             self.current_options = json_response.get("options", [])
-            if not self.current_options:
+            if not self.current_options and not self.prompt_manager.is_no_options:
                 input(f"未能解析选项?? 按键重试 {json_response}")
                 return None
+            elif self.prompt_manager.is_no_options:
+                self.current_options = [{
+                    "id": 0,
+                    "text": "为跳过无选项模式，请使用custom自由输入行动以经过本轮",
+                    "type": "must",
+                    "main_factor": "LUK",
+                    "difficulty": 99999,
+                    "base_probability": 0.0,
+                    "next_preview": "",
+                }]
             self.current_description = json_response.get("description", "")
             if not self.current_description.strip():
                 input(f"未能解析描述?? 按键重试 {json_response}")
@@ -215,7 +228,7 @@ class GameEngine:
                         "probability": option.get("base_probability", 0.0),
                         "next_preview": option.get("next_preview", ""),
                     })
-                except Exception as e:
+                except (ValueError, TypeError) as e:
                     print(f"解析某选项时出错: {e},选项: {option}")
                     input("已跳过该选项,按任意键继续解析")
 
@@ -266,7 +279,7 @@ class GameEngine:
                     option["text"], "《", "》", COLOR_MAGENTA)
 
             return json_response
-        except Exception as e:
+        except (ValueError, json.JSONDecodeError) as e:
             print(f"解析AI响应时出错: {e}")
             print("响应内容:")
             print(response)
@@ -449,6 +462,51 @@ class GameEngine:
         if is_custom:
             selected_option = {"id": 999,
                                "text": option_id, "type": "normal", "next_preview": ""}
+            # 调用get_action_mode_prompt获取自定义动作的类型等修饰后选项的提示词，对选项进行修饰
+            custom_prompt = self.prompt_manager.get_action_mode_prompt(
+                self.player_name,
+                self.current_description,
+                '\n'.join(
+                    [i for i in self.history_simple_summaries[-7:] if i]),
+                option_id,
+                self.get_inventory_text_for_prompt(),
+                self.get_attribute_text(),
+                self.get_situation_text(),
+                self.custom_config.get_custom_prompt())
+            # 手动解析response，获取type、main_factor、difficulty、base_probability、next_preview并赋予给selected_option
+            self.anime_loader.stop_animation()
+            self.anime_loader.start_animation(
+                "dot", message="等待选项修饰")
+            response = self.call_ai(custom_prompt)
+            self.anime_loader.stop_animation()
+            ok_sign = False
+            if response:
+                while not ok_sign:
+                    try:
+                        if not response:
+                            raise ValueError("AI响应为空")
+                        resp_dict = json.loads(repair_json(response))
+                        selected_option["type"] = resp_dict.get(
+                            "type", "normal")
+                        selected_option["main_factor"] = resp_dict.get(
+                            "main_factor", "LUK")
+                        selected_option["difficulty"] = resp_dict.get(
+                            "difficulty", 0)
+                        selected_option["base_probability"] = resp_dict.get(
+                            "base_probability", 0.3)
+                        selected_option["probability"] = selected_option["base_probability"]
+                        selected_option["next_preview"] = resp_dict.get(
+                            "next_preview", "")
+                        # 添加标记，以绕过门槛检测
+                        selected_option["extra"] = "custom_action"
+                        ok_sign = True
+                    except (ValueError, json.JSONDecodeError) as e:
+                        print(f"解析AI响应时出错: {e}")
+                        input(
+                            f"按任意键重试,注意token消耗(本次){self.l_c_token+self.l_p_token}")
+                        print("正在重试...")
+                        response = self.call_ai(custom_prompt)
+
         else:
             selected_option = next(
                 (opt for opt in self.current_options if int(opt["id"]) == int(option_id)), None)
@@ -456,11 +514,19 @@ class GameEngine:
             print("无效的选项ID")
             return -1
         if selected_option:
-            if selected_option["type"] == "must":
+            if selected_option["type"] == "must" and selected_option.get("extra", "") != "custom_action":
                 if self.character_attributes.get(selected_option["main_factor"], 0) < selected_option["difficulty"]:
                     print(
                         f"不满足选项要求[{selected_option['main_factor']}≥{selected_option['difficulty']}]")
                     return -1
+            elif selected_option["type"] == "must":
+                # 对于自定义操作，我们根据是否达到门槛添加是否成功标识即可，不直接return
+                if self.character_attributes.get(selected_option["main_factor"], 0) >= selected_option["difficulty"]:
+                    selected_option["text"] += COLOR_GREEN + \
+                        "<满足要求-行动成功>"+COLOR_RESET
+                else:
+                    selected_option["text"] += COLOR_RED + \
+                        "<不满足要求-行动失败>"+COLOR_RESET
             # 处理并检定概率(两次判定:第一次就成功：大成功；第二次:小成功；)
             if selected_option["type"] == "check":
                 final_chance_mark = False
@@ -546,7 +612,7 @@ class GameEngine:
             #    {"role": "user", "content": prompt})
 
         if not prompt:
-            raise Exception("prompt为空")
+            raise ValueError("prompt为空")
         self.anime_loader.stop_animation()
         self.anime_loader.start_animation("spinner", message="等待<世界>回应")
         ai_response = self.call_ai(prompt)
@@ -584,9 +650,7 @@ class GameEngine:
             self.current_description,
             "\n".join(
                 [str(s) for s in self.history_simple_summaries[:-1] if s is not None]),
-            self.custom_config.get_custom_prompt(),
             self.get_inventory_text_for_prompt(),
-            self.get_attribute_text(),
             self.get_situation_text())
         self.anime_loader.stop_animation()
         self.anime_loader.start_animation("dot", message="思考中")

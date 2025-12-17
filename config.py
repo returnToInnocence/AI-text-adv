@@ -114,7 +114,7 @@ class CustomConfig:
                 }
                 self._save_json_file(MODELS_FILE, default_models)
                 return default_models
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"加载模型配置文件时出错: {e}")
             return {"models": {"0": {
                 "name": "your-model-name",
@@ -139,7 +139,7 @@ class CustomConfig:
                 }
                 self._save_json_file(BASEURLS_FILE, default_baseurls)
                 return default_baseurls
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"加载baseurl配置文件时出错: {e}")
             return {"base_urls": {"0": {
                 "url": "your-base-url",
@@ -164,7 +164,7 @@ class CustomConfig:
                 }
                 self._save_json_file(APIKEYS_FILE, default_apikeys)
                 return default_apikeys
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"加载API密钥配置文件时出错: {e}")
             return {"api_keys": {"0": {
                 "key": "your-api-key",
@@ -178,7 +178,7 @@ class CustomConfig:
             for key, model_info in self.models_data.get("models", {}).items():
                 models_dict[int(key)] = (model_info["name"],
                                          model_info["display_name"])
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"转换模型配置时出错: {e}")
             return {}
         return models_dict
@@ -190,7 +190,7 @@ class CustomConfig:
             for key, baseurl_info in self.baseurls_data.get("base_urls", {}).items():
                 baseurls_dict[int(key)] = (baseurl_info["url"],
                                            baseurl_info["display_name"])
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"转换baseurl配置时出错: {e}")
             return {}
         return baseurls_dict
@@ -202,7 +202,7 @@ class CustomConfig:
             for key, apikey_info in self.apikeys_data.get("api_keys", {}).items():
                 apikeys_dict[int(key)] = (apikey_info["key"],
                                           apikey_info["display_name"])
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"转换API密钥配置时出错: {e}")
             return {}
         return apikeys_dict
@@ -241,7 +241,7 @@ class CustomConfig:
                 }
                 self._save_json_file(CONFIG_FILE, default_config)
                 return default_config
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"加载配置文件时出错: {e}")
             return {}
 
@@ -250,7 +250,7 @@ class CustomConfig:
         try:
             with open(file_path, 'w', encoding='utf-8') as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"保存文件 {file_path} 时出错: {e}")
 
     def save_to_file(self):

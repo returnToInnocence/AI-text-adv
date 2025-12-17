@@ -6,6 +6,7 @@ from typing import Optional
 
 class PromptManager:
     def __init__(self):
+        self.is_no_options = False
         self.prompts_sections = {}
         self.load_prompt_sections()
 
@@ -17,6 +18,13 @@ class PromptManager:
         你是一个文字冒险游戏的AI主持人。你需要：
         1. 创建沉浸式的文字世界和剧情。
         2. 每次回复包含剧情描述和1-6个选项,根据玩家的选择推进剧情
+        3. 保持故事连贯性和角色一致性
+        4. NPC介绍应当包含穿着、年龄、个性、外貌、语言、名字.
+        """
+        self.prompts_sections["system_role_no_options"] = """
+        你是一个文字冒险游戏的AI主持人。你需要：
+        1. 创建沉浸式的文字世界和剧情。
+        2. 根据玩家的行动描述推进剧情
         3. 保持故事连贯性和角色一致性
         4. NPC介绍应当包含穿着、年龄、个性、外貌、语言、名字.
         """
@@ -87,6 +95,51 @@ class PromptManager:
            - 消耗道具"力量丹"并获得1点STR属性：commands:[{"command": "remove_item", "value": "力量丹"}, {"command": "change_attribute", "value": {"STR": 1},"desc":"服用力量丹"}]
         """
 
+        self.prompts_sections["output_format_no_options"] = """
+        按照以下json格式输出：
+                {
+            "description": "主角修炼了一夜，总算入门了[太玄经]...",
+            "summary": "主角修炼了太玄经",
+            "commands": [
+                {"command": "add_item", "value": {'太玄经(入门)':'4级内功，你已经修炼入门'}
+                },
+                {"command": "change_attribute", "value": {'STR':4},"desc":'修炼了太玄经，力量增长'
+                },
+                {"command": "change_attribute", "value": {'WIS':5.5},"desc":'略'
+                },
+                {"command": "change_situation_value", "value": 2
+                }
+            ]
+        }
+        说明：
+        1. 输出格式：不带转义符。用双引号。出现对话则使用『』包裹。
+        2. 字段详解：
+           - description: 当前场景的沉浸式详细描述。不要包含游戏机制、提示、剧情外内容。
+           - summary: 剧情摘要，保留剧情重要信息，15-35字。
+           - commands: 在本次剧情中操作游戏数据的指令列表，每个指令为一个对象。如无指令，则不加该字段。
+                * command: 指令类型，从['add_item', 'remove_item', 'change_attribute','change_situation_value','gameover']中选择。
+                * value: 指令值，格式根据command而定。
+                    - add_item: 值为对象{道具名: 道具描述}
+                    - remove_item: 值为道具名称。
+                    - change_attribute: 改变主角的属性
+                        - value: 对象{属性名: 变动值}，属性名同main_factor，变动值为正数为加，负数为减。
+                        - desc: 属性变化的原因。
+                    - change_situation_value: 改变形势值
+                        - value: 整数，表示变动量。可为负。
+                    - gameover:令游戏结束，即游戏失败。无value字段
+        3. 规则与注意事项：
+           - 物品管理：若玩家在生成的本剧情中物品有变动，则必须通过指令变动道具。
+           - 指令：每个指令只操作一个物品；需操作多个物品时，按顺序使用多条指令(操作属性同理)。
+           - 消耗品：使用、投掷、吃喝等消耗道具时，使用remove_item移除。
+           - 检定成功率：一般建议大于0.35，极难事件可较小或为负。鼓励偶尔使用极端大或小的几率。
+           - 属性：属性越高越难成长。若属性达25，增长开始受阻。默认普通人的全属性为8，游戏中大师的属性为全100左右；
+           - 属性改变：当主角成长、学习武功、新知识、获得机缘，都可能增加属性；而惩罚场合下，可能损失属性。
+            - 形势:当前的剧情形势对玩家的有利程度，范围为-10到10，-10表示绝对绝境，10表示绝对优势，0表示均势。
+                根据剧情和检定结果变更形势值，一般变动幅度0-2，偶尔可突变；事件变化或有突发遭遇可突变。
+        4. 指令示例：
+           - 消耗道具"力量丹"并获得1点STR属性：commands:[{"command": "remove_item", "value": "力量丹"}, {"command": "change_attribute", "value": {"STR": 1},"desc":"服用力量丹"}]
+        """
+
         # 世界背景和规则
         self.prompts_sections["world_rules"] = """
         特别注意事项：
@@ -102,6 +155,20 @@ class PromptManager:
         9. 随剧情、选择、检定结果变更形势值。当出现遭遇类事件时，允许大幅度变更形势。
         10. 生成选项只参考当前已知剧情，不可剧透未知信息。
         11. 获得或失去任何物品都要剧情明确说明！
+        """
+
+        self.prompts_sections["world_rules_no_options"] = """
+        特别注意事项：
+        游戏世界由玩家指定，你是沉浸式文字游戏的AI主持人，剧情语言符合世界观且语言直接明确，允许粗俗。
+        1. 玩家在世界中自由游玩并与NPC互动，玩家死亡则游戏失败。剧情根据玩家的选择及结果、属性、物品而变化。不要出现追兵情节，战斗明快迅速，不要拖沓。不必添加叙事主线。
+        2. 每轮剧情生成95-300字，叙事简明深刻。可带有细节、环境、人物外貌、心理、语言和道具的描述等细节描写，描写生动精准，不要重复。
+        3. 玩家行动推进剧情，避免同类型剧情多次出现。场景深度做好控制，探索完场景即该部分剧情告一段落，不要不断深入探索。剧情不打断当前事件。剧情不要强行带有事件引导，应该让玩家自由探索。
+        4. 角色名字使用[]包裹，特定称谓使用<>包裹.
+        5. 若要修改物品，应先移除物品，再添加修改后的物品。
+        6. 任务、心得、教训、修习武功、技能等也可以当作物品处理。物品名尽量不多于8个字。
+        7. 一般物品、中间物品、消耗品在使用、更新、消耗时，一定要移除！长线剧情线索物品、关键物品、心得、技能、学会的武功与纪念性物品等均建议保留，但要常更新。
+        8. 随剧情、玩家行动、变更形势值。当出现遭遇类事件时，允许大幅度变更形势。
+        9. 获得或失去任何物品都要剧情明确说明！   
         """
 
         # 用户故事
@@ -124,9 +191,9 @@ class PromptManager:
 
         """
         full_prompt = f"""
-        {self.prompts_sections["system_role"]}
-        {self.prompts_sections["world_rules"]}
-        {self.prompts_sections["output_format"]}
+        {self.prompts_sections["system_role"] if not self.is_no_options else self.prompts_sections["system_role_no_options"]}
+        {self.prompts_sections["world_rules"] if not self.is_no_options else self.prompts_sections["world_rules_no_options"]}
+        {self.prompts_sections["output_format"] if not self.is_no_options else self.prompts_sections["output_format_no_options"]}
 
         {"主角的初始背景故事"+self.prompts_sections["user_story"]
             if self.prompts_sections["user_story"] else ""}
@@ -165,17 +232,17 @@ class PromptManager:
         场景深度做好控制，探索完即结束，即该部分剧情告一段落。
         机遇、奖励等不能无限出现，不要出现探索完发现可以继续深入然后反复获得更多奖励的情况。
         如果检定失败，会降低形势值，且剧情走向变得更差，甚至残酷地导致游戏结束。
-        根据实际给出1-4个选项，类型不一，难度有难有易。
-        生成的选项不一定会被选择，选项中若将变动物品等，不要在当前的commands里面写，而是当玩家确实选择了那选项时在下一轮写。
+        {'''根据实际给出1-4个选项，类型不一，难度有难有易。
+        生成的选项不一定会被选择，选项中若将变动物品等，不要在当前的commands里面写，而是当玩家确实选择了那选项时在下一轮写。''' if not self.is_no_options else ""}
         经常使用指令变动物品，应符合逻辑。
         根据剧情与行动合理地偶尔改变若干属性。
         变更形势值;
-        输出新剧情描述，不要包含当前或者历史的描述。
+        不要包含当前或者历史的描述。
 
         """
         full_prompt = f"""
-        {self.prompts_sections["world_rules"]}
-        {self.prompts_sections["output_format"]}
+        {self.prompts_sections["world_rules"] if not self.is_no_options else self.prompts_sections["world_rules_no_options"]}
+        {self.prompts_sections["output_format"] if not self.is_no_options else self.prompts_sections["output_format_no_options"]}
         {self.prompts_sections["user_story"]}
         {custom_prompt}
         {continuation_context}
@@ -193,7 +260,7 @@ class PromptManager:
         """
         return summary_prompt
 
-    def get_think_prompt(self, think_context: str, player_name: str, cur_desc: str, previous_description: str, custom_prompt: str = "", inventory_text: str = "", attribute_text: str = "", situation_text: Optional[str] = ""):
+    def get_think_prompt(self, think_context: str, player_name: str, cur_desc: str, previous_description: str, inventory_text: str = "", situation_text: Optional[str] = ""):
         """获取思考提示词"""
         think_context = f"""
         历史: {previous_description}
@@ -224,3 +291,44 @@ class PromptManager:
         }}
         """
         return use_item_prompt
+
+    def get_action_mode_prompt(self, player_name: str, cur_desc: str, short_history_desc: str, player_move: str, inventory_text: str = "", attribute_text: str = "", situation_text: Optional[str] = "", custom_prompt: str = ""):
+        """获取自定义动作的类型等修饰后选项的提示词"""
+        action_mode_prompt = f"""
+        玩家{player_name}在当前场景中，计划进行动作:{player_move}。
+        当前场景:{cur_desc}
+        历史摘要:{short_history_desc} 
+        {situation_text}
+        {inventory_text}
+        {attribute_text}
+        {custom_prompt}
+        你综合玩家的场景、物品、属性等信息，为该动作选择一个客观合理符合逻辑和世界观的修饰，要求:
+        使用下面的json格式输出,只输出json:
+        {{
+            "type": "check",
+            "main_factor": "LUK",
+            "difficulty": 15,
+            "base_probability": 0.5,
+            "next_preview": "你继续剧情，发现..."
+        }}
+        其中：
+        * type: 选项类型，为'normal'（普通选项）或'check'（需检定是否成功）或'must'（需要门槛，不满足门槛为失败，满足为成功）
+        * main_factor : 仅当type为'check'或者'must'时有。表示检定或门槛的主属性依赖，从力量 STR 敏捷 DEX 智力 INT 感知 WIS 魅力 CHA 幸运LUK中选。
+        * difficulty: 仅type为'check'或者'must'时有，整数，表示检定难度和门槛。数值越大越困难。
+        * base_probability: 仅type为'check'时有，表示基本成功率，从-1到1的浮点数（0.02表示2%）。
+        * next_preview: 选择该选项后故事发展的开头一句话过渡。
+        注意遵循下面的规则：
+        1. base_probability一般建议大于0.35，极难事件可较小或为负。鼓励偶尔使用极端大或小的几率。
+        2.normal适用于一般事件，check适用于需要分支、判断成功失败的事件(如获取奖励、规避风险、触发事件、逆转局势)；must适用于需要一定门槛才能达成的事件（如获取特殊物品、触发特殊剧情、获取奖励、逆转局势）；
+        3. - must事件的门槛和check事件的难度difficulty数值要求:
+               实际根据剧情与人物信任度、关系亲密等因素调整，门槛不要过低。
+               1.一般事件: -30到10之间
+               2.较难或对高手: 10到18之间
+               3.困难或对精英: 18到30之间
+               4.极难(如强行触发关键剧情)或对宗师: 30到65之间
+               5.几乎不可能的事件或对最强层次人物的事件: 65到101之间
+               6.特殊事件(不可能或必然事件):-101或者102.
+        
+        
+        """
+        return action_mode_prompt
