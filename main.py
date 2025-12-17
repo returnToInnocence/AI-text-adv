@@ -332,7 +332,7 @@ def list_saves():
                         save_data = json.load(f)
                     # timestamp = datetime.fromisoformat(
                     #    save_data["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
-                    save_desc = save_data["save_desc"]
+                    save_desc = save_data.get("save_desc", "autosave")
                     save_info.append({
                         "game_id": game_id,
                         "player_name": save_data["player_name"],
