@@ -11,7 +11,7 @@ from animes import typewriter_narrative, show_loading_animation, SyncLoadingAnim
 
 config = CustomConfig()
 
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 
 extra_datas = {
     "turn": 0,
