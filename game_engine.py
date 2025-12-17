@@ -60,6 +60,7 @@ class GameEngine:
         # 拓展-形势(-10 到 10)
         self.situation = 0
         self.situation_text = {
+            (-99999, -10): "形势对你极其不利",
             (-10, -7): "形势对你非常不利",
             (-7, -4): "形势对你明显不利",
             (-4, -1): "形势对你略显不利",
@@ -67,6 +68,7 @@ class GameEngine:
             (1, 4): "形势对你略有利",
             (4, 7): "形势对你明显有利",
             (7, 10): "形势对你非常有利",
+            (10, 99999): "形势对你极其有利",
         }
         # 拓展-待显示消息的队列
         self.message_queue = deque()
@@ -386,9 +388,10 @@ class GameEngine:
                 break
     # 开始游戏
 
-    def start_game(self):
+    def start_game(self, st_story: str = ''):
         init_prompt = self.prompt_manager.get_initial_prompt(
             self.player_name,
+            st_story,
             self.custom_config.get_custom_prompt(),
             self.get_inventory_text_for_prompt(),
             self.get_attribute_text())
@@ -608,7 +611,7 @@ class GameEngine:
             "全局总token消耗量": self.total_tokens,
         }
 
-    def get_inventory_text(self):
+    def get_inventory_text(self, need_desc=True):
         """获取当前道具列表的文本描述"""
         if not self.inventory:
             return "当前没有道具"
@@ -618,13 +621,13 @@ class GameEngine:
             self.inventory) <= 25 else list(self.inventory.items())[-25:]
         no_available_items = list(self.inventory.items())[:-25] if len(
             self.inventory) > 25 else []
-        return f"当前道具列表（{nums_text}）：\n" + "\n".join([f"{COLOR_YELLOW}{item}{COLOR_RESET}: {desc}" for item, desc in available_items] + [f"{COLOR_RED}[✘]{item}{COLOR_RESET}: {desc}" for item, desc in no_available_items])
+        return f"当前道具列表（{nums_text}）：\n" + "\n".join([f"{idx+1}.{COLOR_YELLOW}{item}{COLOR_RESET}: {desc if need_desc else ''}" for idx, (item, desc) in enumerate(available_items)] + [f"{idx+len(available_items)+1}.{COLOR_RED}[✘]{item}{COLOR_RESET}: {desc}" for idx, (item, desc) in enumerate(no_available_items)])
 
-    def get_item_repository_text(self):
+    def get_item_repository_text(self, need_desc=True):
         """获取物品仓库的文本描述"""
         if not self.item_repository:
             return "物品仓库当前没有道具"
-        return f"物品仓库当前道具列表（{len(self.item_repository)}）：\n" + "\n".join([f"{COLOR_YELLOW}{item}{COLOR_RESET}: {desc}" for item, desc in self.item_repository.items()])
+        return f"物品仓库当前道具列表（{len(self.item_repository)}）：\n" + "\n".join([f"{idx+1}.{COLOR_YELLOW}{item}{COLOR_RESET}: {desc if need_desc else ''}" for idx, (item, desc) in enumerate(self.item_repository.items())])
 
     def get_attribute_text(self, colorize=False):
         """获取当前属性列表的文本描述"""
@@ -654,6 +657,10 @@ class GameEngine:
 
     def get_situation_text(self, add_numbers=False):
         """获取当前形势的文本描述"""
+        if self.situation > 10:
+            self.situation = 10
+        if self.situation < -10:
+            self.situation = -10
         for tp, texts in self.situation_text.items():
             if tp[0] <= self.situation < tp[1]:
                 if add_numbers:
