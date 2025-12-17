@@ -616,11 +616,11 @@ class GameEngine:
         if not self.inventory:
             return "当前没有道具"
         nums_text = f"{len(self.inventory)}" if len(
-            self.inventory) <= 25 else f"{len(self.inventory)},但其中{len(self.inventory)-25}个道具不会参与剧情。如想，尝试丢弃物品？"
+            self.inventory) <= 50 else f"{len(self.inventory)},但其中{len(self.inventory)-50}个道具不会参与剧情。如想，尝试丢弃物品？"
         available_items = self.inventory.items() if len(
-            self.inventory) <= 25 else list(self.inventory.items())[-25:]
-        no_available_items = list(self.inventory.items())[:-25] if len(
-            self.inventory) > 25 else []
+            self.inventory) <= 50 else list(self.inventory.items())[-50:]
+        no_available_items = list(self.inventory.items())[:-50] if len(
+            self.inventory) > 50 else []
         return f"当前道具列表（{nums_text}）：\n" + "\n".join([f"{idx+1}.{COLOR_YELLOW}{item}{COLOR_RESET}: {desc if need_desc else ''}" for idx, (item, desc) in enumerate(available_items)] + [f"{idx+len(available_items)+1}.{COLOR_RED}[✘]{item}{COLOR_RESET}: {desc}" for idx, (item, desc) in enumerate(no_available_items)])
 
     def get_item_repository_text(self, need_desc=True):
