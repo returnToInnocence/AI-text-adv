@@ -330,12 +330,13 @@ def list_saves():
                 try:
                     with open(filepath, 'r', encoding='utf-8') as f:
                         save_data = json.load(f)
-                    # timestamp = datetime.fromisoformat(
-                    #    save_data["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
+                    timestamp = datetime.fromisoformat(
+                        save_data["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
                     save_desc = save_data.get("save_desc", "autosave")
                     save_info.append({
                         "game_id": game_id,
                         "player_name": save_data["player_name"],
+                        "timestamp": timestamp,
                         "total_turns": save_data["total_turns"],
                         "save_type": "manual" if filename.startswith("manual_") else "auto",
                         "save_desc": save_desc,
