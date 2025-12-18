@@ -411,6 +411,9 @@ class GameEngine:
         # self.conversation_history.append(
         #    {"role": "user", "content": init_prompt})
         ai_response = self.call_ai(init_prompt)
+        while not ai_response:
+            input('无响应内容？任意键重试')
+            ai_response = self.call_ai(init_prompt)
         if ai_response:
             ok_sign = self.parse_ai_response(ai_response)
             while not ok_sign:
@@ -533,12 +536,12 @@ class GameEngine:
                 target_prob = selected_option["probability"] + \
                     (self.character_attributes.get(
                         selected_option["main_factor"], 0)-selected_option["difficulty"]) * 3 / 2000
-                # 计算形势n影响(若n为正，几率增加0.01*1.5*n**1.5,否则减少0.03*n)
+                # 计算形势n影响(若n为正，几率增加0.01*2.5*n**1.3,否则减少0.03*n)
                 situation_factor = self.situation
                 if situation_factor > 0:
-                    target_prob += 0.01*3*situation_factor**1.5
+                    target_prob += 0.01*2.5*situation_factor**1.3
                 else:
-                    target_prob -= 0.03*situation_factor
+                    target_prob += 0.03*situation_factor
                 # 检定成功概率(第一次判定)
                 success_prob = random.uniform(0, 1)
                 probability_check_animation(
@@ -920,6 +923,7 @@ class GameEngine:
         )
         response = self.call_ai(prompt)
         if not response:
+            input('注意：AI未给出响应')
             return True
         try:
             is_ok = json.loads(response)["is_valid"] == 1
