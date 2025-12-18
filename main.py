@@ -452,7 +452,7 @@ def display_options(GAME: GameEngine):
             opt["main_factor"], 0)-opt["difficulty"])*3/2000
         # 处理形势
         if situation > 0:
-            fix_value += 0.01*3*situation**1.5
+            fix_value += 0.01*2.5*situation**1.3
         elif situation < 0:
             fix_value += 0.03*situation
         if opt["type"] == "check":
