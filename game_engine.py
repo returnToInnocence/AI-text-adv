@@ -86,6 +86,11 @@ class GameEngine:
         # 拓展-是否无选项模式
         self.prompt_manager.is_no_options = False
 
+        # 拓展-变量表
+        self.variables = {
+            "玩家持有金钱": '0',
+        }
+
     # 调用AI模型
 
     def call_ai(self, prompt: str):
@@ -93,7 +98,7 @@ class GameEngine:
         temperature = self.custom_config.temperature
         frequency_penalty = self.custom_config.frequency_penalty
         presence_penalty = self.custom_config.presence_penalty
-        
+
         provider = self.custom_config.get_current_provider()
         model_name = provider["model"]
         api_key = provider["api_key"]
@@ -113,6 +118,7 @@ class GameEngine:
                 "temperature": temperature,
                 "frequency_penalty": frequency_penalty,
                 "presence_penalty": presence_penalty,
+                "timeout": 100,
             }
 
             # 混元不支持frequency_penalty,presence_penalty,如果模型是混元，去掉这两条
@@ -151,7 +157,13 @@ class GameEngine:
                     return self.current_response
         except (openai.OpenAIError, ValueError) as e:
             print(f"调用AI模型时出错: {e}")
-            input()
+            input("按任意键继续")
+            self.anime_loader.stop_animation()
+            return None
+        except TimeoutError:
+            print("调用AI模型超时(100s)")
+            input("按任意键继续")
+            self.anime_loader.stop_animation()
             return None
 
     # 解析AI响应
@@ -181,7 +193,7 @@ class GameEngine:
                     input("字符串类型？尝试解析为JSON")
                     json_response = json.loads(json_response)
                 else:
-                    input("重新生成？")
+                    input("按任意键重试")
                     return None
             try:
                 # 检查是否有指令(commands),有则执行
@@ -247,37 +259,16 @@ class GameEngine:
                         option["difficulty"] = 0
                     if not option.get("main_factor"):
                         option["main_factor"] = "LUK"
-            # 文本美化，把<>中内容添加颜色、[]中内容添加颜色,『』中内容添加颜色,《》中内容添加颜色
-            # 根据起始、结束符上色的函数
 
-            def colorize(text: str, start: str, end: str, color: str):
-                return text.replace(start, color+start).replace(end, end+COLOR_RESET)
             # 美化描述
-            self.current_description = colorize(
-                self.current_description, "[", "]", COLOR_YELLOW)
-            self.current_description = colorize(
-                self.current_description, "<", ">", COLOR_CYAN)
-            self.current_description = colorize(
-                self.current_description, "『", "』", COLOR_BLUE)
-            self.current_description = colorize(
-                self.current_description, "《", "》", COLOR_MAGENTA)
+            self.current_description = self.colorize(
+                self.current_description)
             for option in self.current_options:
                 if option["next_preview"]:
-                    option["next_preview"] = colorize(
-                        option["next_preview"], "[", "]", COLOR_YELLOW)
-                    option["next_preview"] = colorize(
-                        option["next_preview"], "<", ">", COLOR_CYAN)
-                    option["next_preview"] = colorize(
-                        option["next_preview"], "『", "』", COLOR_BLUE)
-                    option["next_preview"] = colorize(
-                        option["next_preview"], "《", "》", COLOR_MAGENTA)
+                    option["next_preview"] = self.colorize(
+                        option["next_preview"])
                 # 对选项文本也美化
-                option["text"] = colorize(
-                    option["text"], "[", "]", COLOR_YELLOW)
-                option["text"] = colorize(option["text"], "<", ">", COLOR_CYAN)
-                option["text"] = colorize(option["text"], "『", "』", COLOR_BLUE)
-                option["text"] = colorize(
-                    option["text"], "《", "》", COLOR_MAGENTA)
+                option["text"] = self.colorize(option["text"])
 
             return json_response
         except (ValueError, json.JSONDecodeError) as e:
@@ -286,7 +277,7 @@ class GameEngine:
             print(response)
             print("解析内容:")
             print(json_content)
-            input()
+            input("按任意键继续")
             return None
 
     # 指令处理
@@ -325,34 +316,23 @@ class GameEngine:
                     self.inventory[item_name] = item_desc
                     # self.history_simple_summaries.append(
                     #    f"{self.custom_config.player_name}获得了道具{item_name}")
-                    self.anime_loader.stop_animation()
-                    self.anime_loader.start_animation(
-                        "dot", message=COLOR_GREEN+f"你获得了道具{item_name}"+COLOR_RESET)
                     self.message_queue.append(
-                        f"你获得了道具{item_name}")
-                    time.sleep(3)
-                    self.anime_loader.stop_animation()
-
+                        f"{COLOR_GREEN}你获得了道具{item_name}{COLOR_RESET}")
                 else:
-                    input(f"[警告]:添加道具时未提供道具信息或者信息格式不正确{command}")
+                    print(f"[警告]:添加道具时未提供道具信息或者信息格式不正确{command}")
             elif command_type == "remove_item":
                 if value:
                     if value in self.inventory:
                         del self.inventory[value]
                         # self.history_simple_summaries.append(
                         #    f"{self.custom_config.player_name}失去了道具{value}")
-                        self.anime_loader.stop_animation()
-                        self.anime_loader.start_animation(
-                            "dot", message=COLOR_RED+f"你失去了道具{value}"+COLOR_RESET)
                         self.message_queue.append(
-                            f"你失去了道具{value}")
-                        time.sleep(3)
-                        self.anime_loader.stop_animation()
+                            f"{COLOR_RED}你失去了道具{value}{COLOR_RESET}")
                     else:
-                        input(f"[警告]:移除时玩家没有道具【{value}】{command}")
+                        print(f"[警告]:移除时玩家没有道具【{value}】{command}")
                 else:
-                    input(f"[警告]:移除道具时未提供道具信息{command}")
-            elif command_type == "change_attribute":
+                    print(f"[警告]:移除道具时未提供道具信息{command}")
+            elif command_type == "change_attr":
                 # value: 对象{"属性名": "属性值"}，属性名为力量 STR 敏捷 DEX 智力 INT 感知 WIS 魅力 CHA中的一个，属性值可以是负数。
                 if value:
                     if not isinstance(value, dict) or len(value) != 1:
@@ -366,32 +346,27 @@ class GameEngine:
                         self.character_attributes[attribute_name] += attribute_value
                         # self.history_simple_summaries.append(
                         #    f"{self.custom_config.player_name}的{attribute_name}属性{"因为"+desc+"而" if desc else ""}改变了{attribute_value}")
-                        self.anime_loader.stop_animation()
                         change_message = f"{self.custom_config.player_name}的属性{attribute_name}{"因为"+desc+"而" if desc else ""}变动{attribute_value:+}(总{self.character_attributes[attribute_name]})"
                         change_message = COLOR_GREEN + \
                             f"{change_message}"+COLOR_RESET if attribute_value > 0 else COLOR_RED + \
                             f"{change_message}"+COLOR_RESET
-                        self.anime_loader.start_animation(
-                            "dot", message=change_message)
                         self.message_queue.append(
                             change_message)
-                        time.sleep(3)
-                        self.anime_loader.stop_animation()
                     else:
-                        input(f"[警告]:改变属性时玩家没有属性【{value}】{command}")
+                        print(f"[警告]:改变属性时玩家没有属性【{value}】{command}")
                 else:
-                    input(f"[警告]:改变属性时未提供属性信息{command}")
-            elif command_type == "change_situation_value":
+                    print(f"[警告]:改变属性时未提供属性信息{command}")
+            elif command_type == "change_situation":
                 if value:
                     if isinstance(value, str) and ((value.startswith(("+", "-")) and value[1:].isdigit()) or value.isdigit()):
                         value = int(value)
                     if not isinstance(value, int):
-                        input(f"[警告]:改变形势值时提供的信息格式错误{command}")
+                        print(f"[警告]:改变形势值时提供的信息格式错误{command}")
                         continue
                     self.situation += value
                     self.situation = max(0, min(self.situation, 10))
                 else:
-                    input(f"[警告]:改变形势值时未提供形势值信息{command}")
+                    print(f"[警告]:改变形势值时未提供形势值信息{command}")
             elif command_type == "gameover":
                 self.current_game_status = "failure"
                 self.anime_loader.stop_animation()
@@ -400,6 +375,29 @@ class GameEngine:
                 time.sleep(4)
                 self.anime_loader.stop_animation()
                 break
+            elif command_type == "set_var":
+                if value:
+                    print(f"[调试]:设置变量时提供的信息{value}")
+                    if not isinstance(value, dict) or len(value) != 1:
+                        input(f"[警告]:设置变量时提供的信息格式错误{command}")
+                        continue
+                    # 解析变量名和变量值
+                    var_name, var_value = list(value.keys())[
+                        0], list(value.values())[0]
+                    self.variables[var_name] = var_value
+                else:
+                    input(f"[警告]:设置变量时未提供变量信息{command}")
+            elif command_type == "del_var":
+                if value:
+                    # 解析变量名
+                    var_name = str(value)
+                    if var_name in self.variables:
+                        del self.variables[var_name]
+                    else:
+                        print(f"[警告]:删除变量时玩家没有变量【{var_name}】{command}")
+                else:
+                    print(f"[警告]:删除变量时未提供变量信息{command}")
+
     # 开始游戏
 
     def start_game(self, st_story: str = ''):
@@ -446,6 +444,8 @@ class GameEngine:
                 self.anime_loader.stop_animation()
                 self.history_simple_summaries = [
                     summary]+self.history_simple_summaries[10:]
+                self.conclude_summary_cooldown = 10
+                self.token_consumes[-1] += self.l_p_token+self.l_c_token
                 return 0
             # 否则，我们只总结新摘要，形成压缩摘要
             prompt = self.prompt_manager.get_summary_prompt(
@@ -476,12 +476,14 @@ class GameEngine:
                 self.get_inventory_text_for_prompt(),
                 self.get_attribute_text(),
                 self.get_situation_text(),
-                self.custom_config.get_custom_prompt())
+                self.custom_config.get_custom_prompt(),
+                self.get_vars_text())
             # 手动解析response，获取type、main_factor、difficulty、base_probability、next_preview并赋予给selected_option
             self.anime_loader.stop_animation()
             self.anime_loader.start_animation(
                 "dot", message="等待选项修饰")
             response = self.call_ai(custom_prompt)
+            self.token_consumes[-1] += self.l_p_token+self.l_c_token
             self.anime_loader.stop_animation()
             ok_sign = False
             if response:
@@ -499,8 +501,6 @@ class GameEngine:
                         selected_option["base_probability"] = resp_dict.get(
                             "base_probability", 0.3)
                         selected_option["probability"] = selected_option["base_probability"]
-                        selected_option["next_preview"] = resp_dict.get(
-                            "next_preview", "")
                         # 添加标记，以绕过门槛检测
                         selected_option["extra"] = "custom_action"
                         ok_sign = True
@@ -537,14 +537,15 @@ class GameEngine:
                 target_prob = selected_option["probability"] + \
                     (self.character_attributes.get(
                         selected_option["main_factor"], 0)-selected_option["difficulty"]) * 3 / 2000
-                # 计算形势n影响(若n为正，几率增加0.01*2.5*n**1.3,否则减少0.03*n)
+                # 计算形势n影响(若n为正，几率增加0.01*2.2*n**1.25,否则减少0.04*n)
                 situation_factor = self.situation
                 if situation_factor > 0:
-                    target_prob += 0.01*2.5*situation_factor**1.3
+                    target_prob += 0.01*2.2*situation_factor**1.25
                 else:
-                    target_prob += 0.03*situation_factor
+                    target_prob += 0.04*situation_factor
                 # 检定成功概率(第一次判定)
                 success_prob = random.uniform(0, 1)
+                print("正在进行第一次检定")
                 probability_check_animation(
                     success_prob,
                     target_prob=max(target_prob*0.65, 0.01),
@@ -556,6 +557,7 @@ class GameEngine:
                         "<检定大成功!>"+COLOR_RESET
                     print(COLOR_GREEN+"检定大成功! "+COLOR_RESET)
                 else:
+                    print("正在进行第二次检定")
                     new_success_prob = random.uniform(0, 1)
                     cur_min = min(new_success_prob, success_prob)
                     probability_check_animation(
@@ -610,7 +612,8 @@ class GameEngine:
                 self.custom_config.get_custom_prompt(),
                 self.get_inventory_text_for_prompt(),
                 self.get_attribute_text(),
-                self.get_situation_text())
+                self.get_situation_text(),
+                self.get_vars_text())
 
             # self.conversation_history.append(
             #    {"role": "user", "content": prompt})
@@ -735,6 +738,15 @@ class GameEngine:
                     return f"当前的形势值:{self.situation}({texts})"
                 return texts
 
+    def get_vars_text(self):
+        """获取当前变量的文本描述"""
+        if not self.variables:
+            return "当前没有变量"
+        text = "游戏变量表：\n"
+        for var_name, var_value in self.variables.items():
+            text += f"{var_name}:{var_value}\n"
+        return text
+
     def log_game(self, log_file: str):
         """记录游戏信息，处理Unicode编码问题"""
         # def safe_json_dump(data, file_handle):
@@ -843,6 +855,7 @@ class GameEngine:
             if allow_base_first_success:
                 first_target = max(first_target, 0.01)
             rand_first = random.uniform(0, 1)
+            print("正在进行第一次检定")
             probability_check_animation(
                 rand_first,
                 target_prob=first_target,
@@ -855,6 +868,7 @@ class GameEngine:
             if allow_base_first_success:
                 second_target = max(second_target, 0.01)
             rand_second = random.uniform(0, 1)
+            print("正在进行第二次检定")
             probability_check_animation(
                 rand_second,
                 target_prob=second_target,
@@ -932,3 +946,49 @@ class GameEngine:
             is_ok = False
         self.token_consumes[-1] += self.l_p_token+self.l_c_token
         return is_ok
+
+    def colorize(self, text: str):
+        """
+        对文本进行颜色美化
+        """
+        remain_color_stack = [COLOR_RESET]  # 用于修正嵌套错误
+        remain_need_close_chars_stack = []
+        finally_text = []  # 用于避免频繁创建字符串
+        current_printing_color = COLOR_RESET
+        color_convert_dict = {
+            "<": COLOR_MAGENTA,
+            "[": COLOR_CYAN,
+            "『": COLOR_YELLOW,
+            "《": COLOR_MAGENTA,
+            "「": COLOR_GREEN,
+        }
+        close_chars = {
+            ">": "<",
+            "]": "[",
+            "』": "『",
+            "》": "《",
+            "」": "「",
+        }
+        # 从开始向字符串末尾逐字符扫描替换
+        for i in text:
+            if i in color_convert_dict:
+                current_printing_color = color_convert_dict[i]
+                remain_need_close_chars_stack.append(i)
+                remain_color_stack.append(current_printing_color)
+                finally_text.append(current_printing_color+i)
+            elif i in close_chars:
+                if remain_need_close_chars_stack and remain_need_close_chars_stack[-1] == close_chars[i]:
+                    remain_need_close_chars_stack.pop()
+                else:
+                    input(f"[文本美化]注意：不符合预期的文本嵌套结构{text}\n 文本将不会被美化 \n按任意键继续")
+                    return text
+                if remain_color_stack:
+                    remain_color_stack.pop()
+                    current_printing_color = remain_color_stack[-1] if remain_color_stack else COLOR_RESET
+                    finally_text.append(i+current_printing_color)
+                else:
+                    finally_text.append(i+COLOR_RESET)
+            else:
+                finally_text.append(i)
+        finally_text.append(COLOR_RESET)  # 强制重置颜色
+        return ''.join(finally_text)

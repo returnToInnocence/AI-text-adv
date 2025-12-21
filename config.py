@@ -81,7 +81,8 @@ class CustomConfig:
         # LLM API 配置：参考config目录下面的配置即可
         self.llm_api_config = self._load_llm_api_config()
         self.api_providers = self._convert_api_providers_to_dict()
-        self.api_provider_choice = self.llm_api_config.get("api_provider_choice", 0)
+        self.api_provider_choice = self.llm_api_config.get(
+            "api_provider_choice", 0)
 
     def _load_llm_api_config(self):
         try:
@@ -104,6 +105,7 @@ class CustomConfig:
                 return default_config
         except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"加载LLM API配置文件时出错: {e}")
+            input("按任意键继续...")
             return {"api_providers": {}, "api_provider_choice": 0}
 
     def _convert_api_providers_to_dict(self):
@@ -118,6 +120,7 @@ class CustomConfig:
                 }
         except (json.JSONDecodeError, ValueError, TypeError) as e:
             print(f"转换API提供商配置时出错: {e}")
+            input("按任意键继续...")
             return {0: {
                 "name": "默认",
                 "base_url": "your-base-url",

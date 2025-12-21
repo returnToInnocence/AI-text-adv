@@ -11,7 +11,7 @@ from animes import typewriter_narrative, show_loading_animation, SyncLoadingAnim
 
 config = CustomConfig()
 
-VERSION = "0.1.5"
+VERSION = "0.1.6"
 
 extra_datas = {
     "turn": 0,
@@ -38,7 +38,7 @@ def display_narrative_with_typewriter(narr: str,
     print("\n" + separator)
 
     paras = narr.split("\n")
-    interrupted = False
+    interrupted = False  # 这里关闭中断功能
 
     for para in paras:
         if para.strip() and not interrupted:
@@ -126,6 +126,7 @@ def save_game(game_engine, save_name="autosave", is_manual_save=False):
             "extra_datas": extra_datas,
             "item_repo": game_engine.item_repository,
             "is_no_options": game_engine.prompt_manager.is_no_options,
+            "variables": game_engine.variables,
         }
 
         # 生成文件名
@@ -220,7 +221,10 @@ def load_game(game_engine, save_name="autosave", filename=None, game_id=None):
 
         # 恢复游戏状态
         if save_data["version"] != VERSION:
-            input(f"[警告]:不匹配的版本号(存档{save_data['version']} -- 游戏{VERSION})")
+            tmp = input(
+                f"\n[警告]:不匹配的版本号(存档{save_data['version']} -- 游戏{VERSION})\n 强制读取？(y/n)")
+            if tmp.lower() != "y":
+                return False, 0, "版本号不匹配"
         game_engine.game_id = save_data["game_id"]
         game_engine.player_name = save_data["player_name"]
         game_engine.prompt_manager.prompts_sections["user_story"] = save_data["player_story"]
@@ -243,6 +247,7 @@ def load_game(game_engine, save_name="autosave", filename=None, game_id=None):
         game_engine.item_repository = save_data["item_repo"]
         extra_datas = save_data["extra_datas"]
         game_engine.prompt_manager.is_no_options = save_data["is_no_options"]
+        game_engine.variables = save_data["variables"]
 
         # 恢复配置
         config_data = save_data["custom_config"]
@@ -428,14 +433,23 @@ def manual_load(game_engine):
 
 
 def clear_screen():
+    """
+    清空控制台屏幕
+    """
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def display_narrative(narr: str):
+    """
+    打字机效果显示剧情文本
+    """
     return display_narrative_with_typewriter(narr)
 
 
 def display_options(GAME: GameEngine):
+    """
+    显示游戏选项
+    """
     if GAME.prompt_manager.is_no_options:
         print("输入help 查看帮助")
         print('-'*30)
@@ -449,9 +463,9 @@ def display_options(GAME: GameEngine):
             opt["main_factor"], 0)-opt["difficulty"])*3/2000
         # 处理形势
         if situation > 0:
-            fix_value += 0.01*2.5*situation**1.3
+            fix_value += 0.01*2.2*situation**1.25
         elif situation < 0:
-            fix_value += 0.03*situation
+            fix_value += 0.04*situation
         if opt["type"] == "check":
             # 根据几率来添加不同提示
             if opt["probability"] < 0.05-fix_value:
@@ -476,9 +490,6 @@ def display_options(GAME: GameEngine):
         else:
             print()
 
-        if opt["type"] == "check" and opt['main_factor'] in chara_attrs:
-            print(f" ^{opt['main_factor']}")
-
     if has_danger:
         print(f"[{COLOR_RED}✘ !{COLOR_RESET}] {COLOR_RED}困难检定{COLOR_RESET}")
     if has_event:
@@ -490,11 +501,14 @@ def display_options(GAME: GameEngine):
 
 
 def get_user_input_and_go(GAME: GameEngine):
+    """
+    获取用户输入并执行游戏操作
+    """
     while True:
         loader = show_loading_animation("dot", message="整理中")
         loader.stop_animation()  # type:ignore
         user_input = input(":: ")
-        if user_input in ['exit', 'csmode', 'opi', 'think', 'inv', 'attr', 'conclude_summary', 'help', 'summary', 'save', 'load', 'new', 'config', 'show_init_resp', 'fix_item_name', 'ana_token']:
+        if user_input in ['exit', 'vars', 'setvar', 'delvar', 'csmode', 'opi', 'think', 'inv', 'attr', 'conclude_summary', 'help', 'summary', 'save', 'load', 'new', 'config', 'show_init_resp', 'fix_item_name', 'ana_token']:
             return user_input
         if user_input.isdigit() and 1 <= int(user_input) <= len(GAME.current_options):
             display_narrative(
@@ -514,14 +528,20 @@ def get_user_input_and_go(GAME: GameEngine):
 
 
 def print_all_history(GAME: GameEngine, back_range: int = 50):
+    """
+    打印游戏历史记录
+    """
     for turn, desc, choice in zip(range(1, len(GAME.history_descriptions[-back_range:])+1), GAME.history_descriptions[-back_range:], GAME.history_choices[-back_range:]):
         print(f"{turn}:")
         print(desc)
         print(choice)
-        print("\n" + '-'*60)
+        print("\n" + '-'*40)
 
 
 def config_game():
+    """
+    配置游戏参数
+    """
     is_exit = False
     while not is_exit:
         try:
@@ -579,9 +599,10 @@ def config_game():
                     elif choice == 12:
                         print("可用API提供商:")
                         for key, provider in config.api_providers.items():
-                            print(f"{key}. {provider['name']} (模型: {provider['model']})")
+                            print(
+                                f"{key}. {provider['name']} (模型: {provider['model']})")
                         config.api_provider_choice = int(input("输入提供商ID："))
-                        config._sync_legacy_choices()
+
                     break
                 else:
                     print("无效的选项ID，请重新输入。")
@@ -592,6 +613,9 @@ def config_game():
 
 
 def operate_item(GAME: GameEngine):
+    """
+    操作物品
+    """
     show_desc = True
     while True:
         clear_screen()
@@ -600,9 +624,9 @@ def operate_item(GAME: GameEngine):
         print("\n仓库物品:" + GAME.get_item_repository_text(show_desc))
         print("\n物品操作指令")
         print("输入 '*use 被操作的物品名(或id) 进行什么操作 对哪个目标' 以操作物品(会推进剧情) 例如:'*use 石子 投掷 梅超风'表示对梅超风投掷石子 ")
-        print("'*remove 物品名(或id)' 以销毁物品")
-        print("'*put 物品名(或id)' 以存储物品  (只有最后50个物品会参与剧情，无用物品请进行存储)")
-        print("'*get 物品名(或id)' 以从存储获得物品")
+        print("'*remove 物品名(或id)' 以销毁物品;输入多个空格分隔的id以批量操作")
+        print("'*put 物品名(或id)' 以存储物品  (只有最后50个物品会参与剧情);输入多个空格分隔的id以批量操作")
+        print("'*get 物品名(或id)' 以从存储获得物品;输入多个空格分隔的id以批量操作")
         print("'*add 物品名 物品描述' 以添加物品")
         print("'*rename 物品id 新名称' 以重命名物品")
         print("'*redesc 物品id 新描述' 以改变物品描述")
@@ -615,34 +639,38 @@ def operate_item(GAME: GameEngine):
         if user_input == "exit":
             return False
         elif user_input.startswith("*remove"):
-            item_name = user_input.split("*remove")[1].strip()
-            if item_name.isdigit() and int(item_name) <= len(GAME.inventory):
-                item_name = list(GAME.inventory.keys())[int(item_name)-1]
-            if item_name in GAME.inventory:
-                del GAME.inventory[item_name]
-                input(f"物品 {item_name} 已被销毁")
-            else:
-                input(f"物品 {item_name} 不存在于你的库存中")
+            item_names = user_input.split("*remove")[1].strip().split(" ")
+            for item_name in item_names:
+                if item_name.isdigit() and int(item_name) <= len(GAME.inventory):
+                    item_name = list(GAME.inventory.keys())[int(item_name)-1]
+                if item_name in GAME.inventory:
+                    del GAME.inventory[item_name]
+                    input(f"物品 {item_name} 已被销毁")
+                else:
+                    input(f"物品 {item_name} 不存在于你的库存中")
         elif user_input.startswith("*put"):
-            item_name = user_input.split("*put")[1].strip()
-            if item_name.isdigit() and int(item_name) <= len(GAME.inventory):
-                item_name = list(GAME.inventory.keys())[int(item_name)-1]
-            if item_name in GAME.inventory:
-                GAME.item_repository[item_name] = GAME.inventory[item_name]
-                del GAME.inventory[item_name]
-                input(f"物品 {item_name} 已被存储")
-            else:
-                input(f"物品 {item_name} 不存在于你的库存中")
+            item_names = user_input.split("*put")[1].strip().split(" ")
+            for item_name in item_names:
+                if item_name.isdigit() and int(item_name) <= len(GAME.inventory):
+                    item_name = list(GAME.inventory.keys())[int(item_name)-1]
+                if item_name in GAME.inventory:
+                    GAME.item_repository[item_name] = GAME.inventory[item_name]
+                    del GAME.inventory[item_name]
+                    input(f"物品 {item_name} 已被存储")
+                else:
+                    input(f"物品 {item_name} 不存在于你的库存中")
         elif user_input.startswith("*get"):
-            item_name = user_input.split("*get")[1].strip()
-            if item_name.isdigit() and int(item_name) <= len(GAME.item_repository):
-                item_name = list(GAME.item_repository.keys())[int(item_name)-1]
-            if item_name in GAME.item_repository:
-                GAME.inventory[item_name] = GAME.item_repository[item_name]
-                del GAME.item_repository[item_name]
-                input(f"物品 {item_name} 已被获得")
-            else:
-                input(f"物品 {item_name} 不存在于物品仓库中")
+            item_names = user_input.split("*get")[1].strip().split(" ")
+            for item_name in item_names:
+                if item_name.isdigit() and int(item_name) <= len(GAME.item_repository):
+                    item_name = list(GAME.item_repository.keys())[
+                        int(item_name)-1]
+                if item_name in GAME.item_repository:
+                    GAME.inventory[item_name] = GAME.item_repository[item_name]
+                    del GAME.item_repository[item_name]
+                    input(f"物品 {item_name} 已被获得")
+                else:
+                    input(f"物品 {item_name} 不存在于物品仓库中")
         elif user_input.startswith("*add"):
             item_name, item_desc = user_input.split(
                 "*add")[1].strip().split(" ", 1)
@@ -717,6 +745,9 @@ def operate_item(GAME: GameEngine):
 
 
 def analyze_token_consume(GAME: GameEngine):
+    """
+    分析游戏过程中token消耗趋势
+    """
     # 获取总轮数
     total_rounds = len(GAME.token_consumes)
 
@@ -801,6 +832,16 @@ def analyze_token_consume(GAME: GameEngine):
     input('按任意键继续')
 
 
+def show_item_var_caution(GAME: GameEngine):
+    """如果物品数/变量数超过35.分别提醒用户注意token消耗和适用性"""
+    if len(GAME.inventory) > 35:
+        print(COLOR_YELLOW +
+              f"*物品数超过35个({len(GAME.inventory)}/50),建议调整背包"+COLOR_RESET)
+    if len(GAME.variables) > 35:
+        print(COLOR_YELLOW +
+              f"*变量数超过35个({len(GAME.variables)}),建议清理不必要变量"+COLOR_RESET)
+
+
 def new_game(no_auto_load=False):
     global extra_datas
     anime_loader = SyncLoadingAnimation()
@@ -862,7 +903,7 @@ def new_game(no_auto_load=False):
             min(GAME.character_attributes["INT"]//8, 4), -1)) + 1  # 重置思考次数
 
     while GAME.current_game_status == "ongoing":
-        extra_datas["turns"] += 1
+
         clear_screen()
         print_all_history(GAME)
         if not no_repeat_sign:
@@ -871,6 +912,8 @@ def new_game(no_auto_load=False):
         else:
             print(GAME.current_description)
         print(GAME.get_situation_text())
+        GAME.print_all_messages_await()
+        show_item_var_caution(GAME)
         display_options(GAME)
 
         print(
@@ -891,19 +934,16 @@ def new_game(no_auto_load=False):
         elif user_input == "csmode":
             GAME.prompt_manager.is_no_options = not GAME.prompt_manager.is_no_options
             print(f"自定义模式{'开启' if GAME.prompt_manager.is_no_options else '关闭'}")
-            extra_datas["turns"] -= 1
             input("按任意键继续...")
             continue
         elif user_input == "inv":
             print(GAME.get_inventory_text())
-            extra_datas["turns"] -= 1
             input("按任意键继续...")
             continue
         elif user_input == "opi":
             if operate_item(GAME):
                 init_turn_datas()
                 continue
-            extra_datas["turns"] -= 1
             input("按任意键继续...")
             continue
         elif user_input == "summary":
@@ -911,22 +951,41 @@ def new_game(no_auto_load=False):
             print("摘要")
             print("\n".join(
                 [f"{i+1}. {it}" for i, it in enumerate(list(GAME.history_simple_summaries))]))
-            extra_datas["turns"] -= 1
             input("按任意键继续...")
             continue
         elif user_input == "conclude_summary":
             GAME.go_game("", False, True)
-            extra_datas["turns"] -= 1
             input("总结完成，按任意键继续...")
             continue
         elif user_input == "attr":
             print(GAME.get_attribute_text(colorize=True))
-            extra_datas["turns"] -= 1
             input("按任意键继续...")
+            continue
+        elif user_input == "vars":
+            clear_screen()
+            print(GAME.get_vars_text())
+            input("按任意键继续...")
+            continue
+        elif user_input == "setvar":
+            clear_screen()
+            print(GAME.get_vars_text())
+            name = input("请输入要设置的变量名：\n:: ")
+            val = input("请输入要设置的变量值：\n:: ")
+            GAME.variables[name] = val
+            input("完成设置，按任意键继续...")
+            continue
+        elif user_input == "delvar":
+            clear_screen()
+            print(GAME.get_vars_text())
+            name = input("请输入要删除的变量名：\n:: ")
+            if name not in GAME.variables:
+                input("变量不存在，按任意键继续...")
+                continue
+            del GAME.variables[name]
+            input("完成删除，按任意键继续...")
             continue
         elif user_input == "save":
             manual_save(GAME)
-            extra_datas["turns"] -= 1
             input("按任意键继续...")
             continue
         elif user_input == "load":
@@ -940,66 +999,62 @@ def new_game(no_auto_load=False):
                 continue
         elif user_input == "config":
             config_game()
-            extra_datas["turns"] -= 1
             continue
         elif user_input == "new":
             return 'new_game'
         elif user_input == "show_init_resp":
             show_init_resp = not show_init_resp
             print(f"将显示AI原始响应与Token信息：{show_init_resp}")
-            extra_datas["turns"] -= 1
             input("按任意键继续...")
             continue
         elif user_input == "fix_item_name":
             GAME.fix_item_name_error()
             print("道具名修复完成")
-            extra_datas["turns"] -= 1
             input("按任意键继续...")
             continue
         elif user_input == "ana_token":
             analyze_token_consume(GAME)
-            extra_datas["turns"] -= 1
             continue
         elif user_input == "think":
             if extra_datas["think_count_remain"] <= 0:
                 input("你无法再思考了，做出决定吧.(按任意键继续)")
-                extra_datas["turns"] -= 1
                 continue
             content = input(
                 f"你思索某个疑问(思考次数还剩{int(extra_datas['think_count_remain'])}次) 不输入内容以放弃思考 注意token消耗:\n:: ")
             if content.strip() == "":
                 input("你放弃了思考.(按任意键继续)")
-                extra_datas["turns"] -= 1
                 continue
             GAME.think_go_game(content)
             extra_datas["think_count_remain"] -= 1
-            extra_datas["turns"] -= 1
             input("思考完成，按任意键继续...")
             continue
 
         elif user_input == "help":
-            extra_datas["turns"] -= 1
             print("可用指令：")
             print(f"{COLOR_GREEN}save{COLOR_RESET}:保存游戏")
             print(f"{COLOR_GREEN}load{COLOR_RESET}:读取游戏")
             print(f"{COLOR_GREEN}new{COLOR_RESET}:新游戏")
             print(f"{COLOR_GREEN}config{COLOR_RESET}:配置游戏")
             print(f"{COLOR_GREEN}exit{COLOR_RESET}: 退出游戏")
-            print(f"{COLOR_YELLOW}inv{COLOR_RESET}: 查看道具")
-            print(f"{COLOR_YELLOW}opi{COLOR_RESET}:进行道具操作")
+            print(f"{COLOR_GREEN}inv{COLOR_RESET}: 查看道具")
+            print(f"{COLOR_GREEN}opi{COLOR_RESET}:进行道具操作")
+            print(f"{COLOR_GREEN}attr{COLOR_RESET}:显示属性")
+            print(f"{COLOR_GREEN}summary{COLOR_RESET}:查看摘要")
+            print(f"{COLOR_GREEN}vars{COLOR_RESET}:查看变量")
             print(f"{COLOR_YELLOW}custom{COLOR_RESET}:自定义行动")
             print(f"{COLOR_YELLOW}csmode{COLOR_RESET}:切换自定义模式")
             print(f"{COLOR_YELLOW}think{COLOR_RESET}:思考/联想")
-            print(f"{COLOR_YELLOW}attr{COLOR_RESET}:显示属性")
-            print(f"{COLOR_YELLOW}summary{COLOR_RESET}:查看摘要")
+            print(f"{COLOR_YELLOW}setvar{COLOR_RESET}:添加/设置变量")
+            print(f"{COLOR_YELLOW}delvar{COLOR_RESET}:删除变量")
             print(f"{COLOR_RED}conclude_summary{COLOR_RESET}:手动总结当前摘要(不推荐)")
             print(f"{COLOR_RED}ana_token{COLOR_RESET}:统计token数据")
             print(f"{COLOR_RED}fix_item_name{COLOR_RESET}:修复道具名中的错误")
             print(
-                f"{COLOR_RED}show_init_resp{COLOR_RESET}:切换显示AI的原始相应与Token信息(debug)")
+                f"{COLOR_RED}show_init_resp{COLOR_RESET}:切换显示对每轮剧情的AI的原始相应与Token信息(debug)")
             input("按任意键继续...")
             continue
         else:
+            extra_datas["turns"] += 1
             init_turn_datas()
 
     clear_screen()
@@ -1011,6 +1066,9 @@ def new_game(no_auto_load=False):
 
 
 def main():
+    """
+    主函数，游戏入口
+    """
     no_auto_load = False
     while True:
         i = new_game(no_auto_load)
