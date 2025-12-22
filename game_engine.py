@@ -378,13 +378,12 @@ class GameEngine:
             elif command_type == "set_var":
                 if value:
                     print(f"[调试]:设置变量时提供的信息{value}")
-                    if not isinstance(value, dict) or len(value) != 1:
+                    if not isinstance(value, dict):
                         input(f"[警告]:设置变量时提供的信息格式错误{command}")
                         continue
-                    # 解析变量名和变量值
-                    var_name, var_value = list(value.keys())[
-                        0], list(value.values())[0]
-                    self.variables[var_name] = var_value
+                    # 解析变量名和变量值(为多变量设置提供支持)
+                    for var_name, var_value in value.items():
+                        self.variables[var_name] = var_value
                 else:
                     input(f"[警告]:设置变量时未提供变量信息{command}")
             elif command_type == "del_var":

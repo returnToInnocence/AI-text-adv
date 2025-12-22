@@ -22,6 +22,11 @@
 
 ### ▲成本低廉：
 
+在v0.1.6的版本下，token消耗有所增加，这是新系统(变量表)的引入导致的，
+但斜率下降的趋势没有变化，仍然可控。
+1-110轮: 平均token消耗：4169.34 拟合直线: y = 17.4804x + 3199.1726
+
+
 在v0.1.4的版本下，完善的提示词与良好剧情体验下，中等轮数的表现如下，该新版本相较于下面的旧版本来说，内容更多但效果反而更好：
 
 1-80轮:  平均token消耗: 3589.64  拟合直线: y = 16.0600x + 2939.2057
@@ -65,6 +70,7 @@
 
 1-100轮:  平均token消耗: 3687.30  拟合直线: y = 18.9110x + 2732.2939 
 
+(以上测试均基于单局，由于物品、变量、剧情不同，数据可能不准确。受限于成本，多局测试结果尚待确认)
 
 ### 技术亮点
 
@@ -144,7 +150,7 @@ python main.py
 ### 基本操作
 
 1. **开始游戏**: 运行程序后，根据提示配置角色属性
-2. **选择选项**: 输入数字选择剧情选项（1-6）
+2. **选择选项**: 输入数字选择剧情选项（1-4）
 3. **查看状态**: 使用命令查看游戏状态
 4. **保存进度**: 游戏自动保存，也可手动保存
 5. **物品操作**：通过inv与opi指令进行完善物品操作
@@ -169,6 +175,9 @@ python main.py
 | `help` | 显示帮助 |  |
 | `csmode` | 切换完全自定义行动模式 |  |
 | `show_init_resp` | 切换显示AI原始回复和token详细信息 | 可切换开关，调试用 |
+| `vars` | 查看变量 |  |
+| `setvar` | 添加/设定变量 |  |
+| `delvar` | 删除变量 |  |
 
 ### 游戏机制
 
@@ -224,8 +233,8 @@ AI-game-test/
       "text": "选项文本",
       "type": "normal|check|must",
       "main_factor": "属性名",
-      "difficulty": 数值,
-      "base_probability": 概率,
+      "difficulty": "数值",
+      "base_probability": "概率",
       "next_preview": "预览文本"
     }
   ],
@@ -285,6 +294,22 @@ AI-game-test/
 - `fix_item_name`: 修复道具名错误
 - `ana_token`: 分析Token使用模式
 - `opi`下`*add`等指令：添加物品、修改物品、移除物品等
+- `setvar`: 添加/设定变量
+- `delvar`: 删除变量
+
+
+## 打包为exe文件的说明
+
+1. 安装pyinstaller：`pip install pyinstaller`
+2. 建议打包命令: `pyinstaller --noconfirm --clean --onedir --icon ".\icon.ico" --add-data ".\config;config/" --add-data ".\logs;logs/" --add-data ".\saves;saves/" --exclude-module PyQt5 --exclude-module PyQt6 --exclude-module tkinter --exclude-module numpy --exclude-module pandas --exclude-module scipy --exclude-module matplotlib ".\main.py"`
+  * 查阅main.spec 以了解详细配置
+3. 在`dist/`目录下找到生成的exe文件
+
+## token分析工具的使用说明
+1. 安装matplotlib与numpy:`pip install matplotlib numpy`
+2. 正常进行游戏，找到saves目录下游戏ID文件夹中最新存档文件。
+3. 找到该json文件中的token_consumes字段(通常在最下方),将其复制到tools/ana_tokens.py中的tokens变量中。
+4. 运行ana_tokens.py,即可分析token消耗趋势。
 
 ## 🤝 贡献指南
 
@@ -305,7 +330,9 @@ AI-game-test/
 
 ## TODO NEXT
 
-(预计v0.1.6) 加入金钱系统,以活跃经济方面的交互
+添加总结摘要时附带清理旧、无用变量或物品的机制，减缓token消耗增加。
+重构项目代码
+GUI开发
 (Long run)加入并完善NPC记忆系统，并尝试获得较好效益
 
 ---
