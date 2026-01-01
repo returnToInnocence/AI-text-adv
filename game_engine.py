@@ -64,12 +64,12 @@ class GameEngine:
 
         # 拓展-玩家属性
         self.character_attributes = {
-            "STR": 10.0,
-            "DEX": 10.0,
-            "INT": 10.0,
-            "WIS": 10.0,
-            "CHA": 10.0,
-            "LUK": 10.0,
+            "STR": 20.0,
+            "DEX": 20.0,
+            "INT": 20.0,
+            "WIS": 20.0,
+            "CHA": 20.0,
+            "LUK": 20.0,
         }
         # 拓展-形势(-10 到 10)
         self.situation = 0
@@ -93,6 +93,7 @@ class GameEngine:
         # 拓展-历史摘要总结的cooldown
         # 用于解决当压缩摘要占很多格子导致普通摘要没添加几个就总结时，间隔过短的问题。
         self.conclude_summary_cooldown = 10
+        self.compressed_summary_textmin = 320  # 可认为为压缩摘要时的最小长度
 
         # 拓展-物品(用于存储物品,不参与剧情)
         self.item_system = ItemInventory()
@@ -304,6 +305,7 @@ class GameEngine:
         """
         for command in commands:
             if not isinstance(command, dict):
+                self.anime_loader.stop_animation()
                 input(f'注意：指令{command}出错！\n\n{commands}\n')
                 continue
             command_type = command.get("command")
@@ -444,7 +446,7 @@ class GameEngine:
         self.history_descriptions.append(self.current_description)
         self.token_consumes.append(self.l_p_token+self.l_c_token)
 
-    def go_game(self, option_id, is_custom=False, is_prompt_concluding=False):
+    def go_game(self, option_id, is_custom=False, is_prompt_concluding=False, is_skip_csmode_action_modify=False):
         """
         进行游戏（后续轮次）
         """
@@ -457,52 +459,52 @@ class GameEngine:
         if is_custom:
             selected_option = {"id": 999,
                                "text": option_id, "type": "normal", "next_preview": ""}
-            # 调用get_action_mode_prompt获取自定义动作的类型等修饰后选项的提示词，对选项进行修饰
-            custom_prompt = self.prompt_manager.get_action_mode_prompt(
-                self.player_name,
-                self.current_description,
-                '\n'.join(
-                    [i for i in self.history_simple_summaries[-7:] if i]),
-                option_id,
-                self.item_system.get_inventory_text_for_prompt(),
-                self.get_attribute_text(),
-                self.get_situation_text(),
-                self.custom_config.get_custom_prompt(),
-                self.get_vars_text())
-            # 手动解析response，获取type、main_factor、difficulty、base_probability、next_preview并赋予给selected_option
-            self.anime_loader.stop_animation()
-            self.anime_loader.start_animation(
-                "dot", message="等待选项修饰")
-            response = self.call_ai(custom_prompt)
-            self.token_consumes[-1] += self.l_p_token+self.l_c_token
-            self.anime_loader.stop_animation()
-            ok_sign = False
-            if response:
-                while not ok_sign:
-                    try:
-                        if not response:
-                            raise ValueError("AI响应为空")
-                        resp_dict = json.loads(repair_json(response))
-                        selected_option["type"] = resp_dict.get(
-                            "type", "normal")
-                        selected_option["main_factor"] = resp_dict.get(
-                            "main_factor", "LUK")
-                        selected_option["difficulty"] = resp_dict.get(
-                            "difficulty", 0)
-                        selected_option["base_probability"] = resp_dict.get(
-                            "base_probability", 0.3)
-                        selected_option["probability"] = selected_option["base_probability"]
-                        # 添加标记，以绕过门槛检测
-                        selected_option["extra"] = "custom_action"
-                        ok_sign = True
-                    except (ValueError, json.JSONDecodeError) as e:
-                        self.anime_loader.stop_animation()
-                        print(f"解析AI响应时出错: {e}")
-                        input(
-                            f"按任意键重试,注意token消耗(本次){self.l_c_token+self.l_p_token}")
-                        print("正在重试...")
-                        response = self.call_ai(custom_prompt)
-
+            if not is_skip_csmode_action_modify:
+                # 调用get_action_mode_prompt获取自定义动作的类型等修饰后选项的提示词，对选项进行修饰
+                custom_prompt = self.prompt_manager.get_action_mode_prompt(
+                    self.player_name,
+                    self.current_description,
+                    '\n'.join(
+                        [i for i in self.history_simple_summaries[-7:] if i]),
+                    option_id,
+                    self.item_system.get_inventory_text_for_prompt(),
+                    self.get_attribute_text(),
+                    self.get_situation_text(),
+                    self.custom_config.get_custom_prompt(),
+                    self.get_vars_text())
+                # 手动解析response，获取type、main_factor、difficulty、base_probability、next_preview并赋予给selected_option
+                self.anime_loader.stop_animation()
+                self.anime_loader.start_animation(
+                    "dot", message="等待选项修饰")
+                response = self.call_ai(custom_prompt)
+                self.token_consumes[-1] += self.l_p_token+self.l_c_token
+                self.anime_loader.stop_animation()
+                ok_sign = False
+                if response:
+                    while not ok_sign:
+                        try:
+                            if not response:
+                                raise ValueError("AI响应为空")
+                            resp_dict = json.loads(repair_json(response))
+                            selected_option["type"] = resp_dict.get(
+                                "type", "normal")
+                            selected_option["main_factor"] = resp_dict.get(
+                                "main_factor", "LUK")
+                            selected_option["difficulty"] = resp_dict.get(
+                                "difficulty", 0)
+                            selected_option["base_probability"] = resp_dict.get(
+                                "base_probability", 0.3)
+                            selected_option["probability"] = selected_option["base_probability"]
+                            # 添加标记，以绕过门槛检测
+                            selected_option["extra"] = "custom_action"
+                            ok_sign = True
+                        except (ValueError, json.JSONDecodeError) as e:
+                            self.anime_loader.stop_animation()
+                            print(f"解析AI响应时出错: {e}")
+                            input(
+                                f"按任意键重试,注意token消耗(本次){self.l_c_token+self.l_p_token}")
+                            print("正在重试...")
+                            response = self.call_ai(custom_prompt)
         else:
             selected_option = next(
                 (opt for opt in self.current_options if int(opt["id"]) == int(option_id)), None)
@@ -519,10 +521,10 @@ class GameEngine:
                 # 对于自定义操作，我们根据是否达到门槛添加是否成功标识即可，不直接return
                 if self.character_attributes.get(selected_option["main_factor"], 0) >= selected_option["difficulty"]:
                     selected_option["text"] += COLOR_GREEN + \
-                        "<满足要求-行动成功>"+COLOR_RESET
+                        "<满足行动条件>"+COLOR_RESET
                 else:
                     selected_option["text"] += COLOR_RED + \
-                        "<不满足要求-行动失败>"+COLOR_RESET
+                        "<不满足行动条件>"+COLOR_RESET
             # 处理并检定概率(两次判定:第一次就成功：大成功；第二次:小成功；)
             if selected_option["type"] == "check":
                 final_chance_mark = False
@@ -898,15 +900,15 @@ class GameEngine:
             try:
                 r = json.loads(repair_json(resp))
                 summ = r["summary"]
-                rmv_item = r["rmv_item"]
-                rmv_var = r["rmv_var"]
+                rmv_item = r["useless_items"]
+                rmv_var = r["useless_vars"]
                 return 1, summ, rmv_item, rmv_var
             except (json.JSONDecodeError, KeyError, ValueError) as e:
                 print(f"[警告]:总结历史剧情时解析json失败{resp}，错误信息：{e}")
                 return 0, "", [], []
 
         # 当所有摘要都经过了压缩，我们采取稀释旧摘要策略
-        if not any(i and len(i) < 400 for i in self.history_simple_summaries[:-1]):
+        if not any(i and len(i) < self.compressed_summary_textmin for i in self.history_simple_summaries[:-1]):
             prompt = self.prompt_manager.get_summary_prompt(
                 '\n'.join(
                     [str(s) for s in self.history_simple_summaries[:10] if s is not None]),
@@ -934,15 +936,16 @@ class GameEngine:
             self.conclude_summary_cooldown = 10
             self.token_consumes[-1] += self.l_p_token+self.l_c_token
             return 0
+
         # 否则，我们只总结新摘要，形成压缩摘要
         prompt = self.prompt_manager.get_summary_prompt(
             "\n".join(
-                [i for i in self.history_simple_summaries if i and len(i) < 400]),
+                [i for i in self.history_simple_summaries if i and len(i) < self.compressed_summary_textmin]),
             self.item_system.get_inventory_text_for_prompt(),
             self.get_vars_text())
         self.anime_loader.stop_animation()
         self.anime_loader.start_animation(
-            "dot", message=COLOR_YELLOW+"正在总结历史剧情"+COLOR_RESET)
+            "dot", message=COLOR_YELLOW+"正在总结历史剧情 并清理无用信息"+COLOR_RESET)
         tmp = self.custom_config.max_tokens
         self.custom_config.max_tokens = 2048
         summary = self.call_ai(prompt)
@@ -954,7 +957,7 @@ class GameEngine:
             summary = self.call_ai(prompt)
             ok_sign, summ, rmv_item, rmv_var = phase_summary(summary)
         self.history_simple_summaries = [
-            i for i in self.history_simple_summaries if i and len(i) >= 400] + [summ]
+            i for i in self.history_simple_summaries if i and len(i) >= self.compressed_summary_textmin] + [summ]
         for item in rmv_item:
             self.iremove_item(item)
         for var in rmv_var:
@@ -969,7 +972,7 @@ class GameEngine:
         """
         commands = [{
             "command": "remove_item",
-            "item": item
+            "value": item
         }]
         self.handle_command(commands)
 
@@ -979,6 +982,6 @@ class GameEngine:
         """
         commands = [{
             "command": "del_var",
-            "var": var
+            "value": var
         }]
         self.handle_command(commands)

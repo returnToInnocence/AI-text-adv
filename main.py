@@ -48,6 +48,7 @@ class ExtraData:
     def __init__(self):
         self.turns = 0
         self.think_count_remain = 0
+        self.skip_csmode_action_modify = False
 
     def read_from_dict(self, extra_datas: dict):
         """
@@ -55,6 +56,8 @@ class ExtraData:
         """
         self.turns = extra_datas.get("turns", 0)
         self.think_count_remain = extra_datas.get("think_count_remain", 0)
+        self.skip_csmode_action_modify = extra_datas.get(
+            "skip_csmode_action_modify", False)
 
     def to_dict(self) -> dict:
         """
@@ -63,6 +66,7 @@ class ExtraData:
         return {
             "turns": self.turns,
             "think_count_remain": self.think_count_remain,
+            "skip_csmode_action_modify": self.skip_csmode_action_modify,
         }
 
 
@@ -474,7 +478,7 @@ def display_options(game: GameEngine):
 
 
 # 获取用户输入并执行游戏操作(必须件)
-def get_user_input_and_go(game: GameEngine, skip_inputs: Tuple = ('help',)):
+def get_user_input_and_go(game: GameEngine, extra_datas: ExtraData, skip_inputs: Tuple = ('help',)):
     """
     获取用户输入并执行游戏操作
     """
@@ -487,10 +491,11 @@ def get_user_input_and_go(game: GameEngine, skip_inputs: Tuple = ('help',)):
             display_narrative_with_typewriter(
                 game.current_options[int(user_input)-1]['next_preview'])
         if user_input == "custom" or game.prompt_manager.is_no_options:
-            custom_action = input("你决定 (输入空内容以取消,输入0或a以使用刚输入的内容行动)\n::")
-            if custom_action in ('0', 'a'):
+            custom_action = input(
+                "你决定 (输入空内容以取消,输入0/a/m以使用刚输入的内容行动)\n::")
+            if custom_action in ('0', 'a', 'm'):
                 custom_action = user_input
-            if custom_action.strip() == "" or game.go_game(custom_action, is_custom=True) == -1:
+            if custom_action.strip() == "" or game.go_game(custom_action, is_custom=True, is_skip_csmode_action_modify=extra_datas.skip_csmode_action_modify) == -1:
                 print("自定义行动无效/取消")
                 continue
             return custom_action
@@ -655,6 +660,7 @@ def new_game(no_auto_load=False):
         "vars",
         "custom",
         "csmode",
+        "cs*f",
         "think",
         "setvar",
         "delvar",
@@ -682,7 +688,7 @@ def new_game(no_auto_load=False):
         # 设定属性
         while True:
             attrs = input(
-                "依次输入6个数来决定你的属性(力、敏、智、感、魅、运;一般建议均在5到20之间,默认均为10)\n::")
+                "依次输入6个数来决定你的属性(力、敏、智、感、魅、运;一般建议均在5-50间,默认均为20)\n::")
             if attrs.strip() == "":
                 break
             attrs = attrs.split()
@@ -698,7 +704,7 @@ def new_game(no_auto_load=False):
                 game_instance.character_attributes[key] = val
             break
         print(game_instance.get_attribute_text(colorize=True))
-        tmp = input("以自定义模式开局？(y/n)")
+        tmp = input("以自定义模式开局？(y/n)\n::")
         if tmp.strip() == "y":
             game_instance.prompt_manager.is_no_options = True
         game_instance.game_id = input("为本局游戏命名(或留空)：\n::").strip()
@@ -747,7 +753,8 @@ def new_game(no_auto_load=False):
         game_instance.log_game(os.path.join(
             LOG_DIR, game_instance.game_id+f"_{CURRENT_TIME}.log"))
         save_game(game_instance, extra_datas)
-        user_input = get_user_input_and_go(game_instance, commands)
+        user_input = get_user_input_and_go(
+            game_instance, extra_datas, commands)
 
         if user_input == "exit":
             return 'exit'
@@ -849,9 +856,16 @@ def new_game(no_auto_load=False):
             extra_datas.think_count_remain -= 1
             input("思考完成，按任意键继续...")
             continue
+        elif user_input == "cs*f":
+            extra_datas.skip_csmode_action_modify = not extra_datas.skip_csmode_action_modify
+            print(
+                f"将{'跳过' if extra_datas.skip_csmode_action_modify else '不跳过'}自定义行动的行动修饰")
+            input("按任意键继续...")
+            continue
 
         elif user_input == "help":
             print("可用指令：")
+            print("-"*20)
             print(f"{COLOR_GREEN}save{COLOR_RESET}:保存游戏")
             print(f"{COLOR_GREEN}load{COLOR_RESET}:读取游戏")
             print(f"{COLOR_GREEN}new{COLOR_RESET}:新游戏")
@@ -862,16 +876,20 @@ def new_game(no_auto_load=False):
             print(f"{COLOR_GREEN}attr{COLOR_RESET}:显示属性")
             print(f"{COLOR_GREEN}summary{COLOR_RESET}:查看摘要")
             print(f"{COLOR_GREEN}vars{COLOR_RESET}:查看变量")
+            print("-"*20)
             print(f"{COLOR_YELLOW}custom{COLOR_RESET}:自定义行动")
             print(f"{COLOR_YELLOW}csmode{COLOR_RESET}:切换自定义模式")
+            print(f"{COLOR_YELLOW}cs*f{COLOR_RESET}:切换自定义行动的行动修饰")
             print(f"{COLOR_YELLOW}think{COLOR_RESET}:思考/联想")
             print(f"{COLOR_YELLOW}setvar{COLOR_RESET}:添加/设置变量")
             print(f"{COLOR_YELLOW}delvar{COLOR_RESET}:删除变量")
+            print("-"*20)
             print(f"{COLOR_RED}conclude_summary{COLOR_RESET}:手动总结当前摘要(不推荐)")
             print(f"{COLOR_RED}ana_token{COLOR_RESET}:统计token数据")
             print(f"{COLOR_RED}fix_item_name{COLOR_RESET}:修复道具名中的错误")
             print(
                 f"{COLOR_RED}show_init_resp{COLOR_RESET}:切换显示对每轮剧情的AI的原始相应与Token信息(debug)")
+            print('-'*20)
             input("按任意键继续...")
             continue
         else:
