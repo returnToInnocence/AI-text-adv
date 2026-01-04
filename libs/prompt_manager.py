@@ -46,7 +46,9 @@ class PromptManager:
             ],
             "commands": [
                 {"command": "change_situation", "value": -2},
-                {"command": "set_var", "value": {'黄蓉好感度': '35'}}
+                {"command": "set_var", "value": {'黄蓉好感度': '35'}},
+                {"command": "remove_item", "value": "道具名"},
+                {"command": "change_attr", "value": {"STR": 1}}
             ]
         }
         说明：
@@ -90,8 +92,6 @@ class PromptManager:
               6. 传奇: 151-200
            - 形势:当前的剧情形势对玩家的有利程度，范围为-10到10，-10表示绝境，10表示绝对优势，0表示均势。
                 根据剧情变更形势值，一般幅度为-3到3，偶尔可突变，事件完成则形势清零。
-        4. 指令示例：
-           - 消耗道具"力量丹"并获得1点STR属性：commands:[{"command": "remove_item", "value": "力量丹"}, {"command": "change_attribute", "value": {"STR": 1}}]
         """
         self.prompts_sections["output_format_no_options"] = """
         按照以下json格式输出：
@@ -100,7 +100,9 @@ class PromptManager:
             "summary": "主角为黄蓉挡刀",
             "commands": [
                 {"command": "change_situation", "value": -2},
-                {"command": "set_var", "value": {'黄蓉好感度': '35'}}
+                {"command": "set_var", "value": {'黄蓉好感度': '35'}},
+                {"command": "remove_item", "value": "道具名"},
+                {"command": "change_attr", "value": {"STR": 1}}
             ]
         }
         说明：
@@ -129,8 +131,6 @@ class PromptManager:
            - 属性改变：根据剧情(如获得奖励、受伤)增减玩家属性。
             - 形势:当前的剧情形势对玩家的有利程度，范围为-10到10，-10表示绝境，10表示绝对优势，0表示均势，鼓励负形势的应用。
                 根据剧情变更形势值，一般变动为-3到3，偶尔可突变，事件完成则形势清零。
-        4. 指令示例：
-           - 消耗道具"力量丹"并获得1点STR属性：commands:[{"command": "remove_item", "value": "力量丹"}, {"command": "change_attribute", "value": {"STR": 1}}]
         """
 
         # 世界背景和规则
@@ -287,11 +287,13 @@ class PromptManager:
         {situation_text}
         {inventory_text}
         玩家{player_name}此时正在思考:{think_context}。
-        你只针对该疑问，根据思考判定结果和玩家现有知识给出简要的玩家思考结果。
+        你只针对该疑问，根据思考判定成功与否和玩家现有知识给出简要的玩家思考结果。
+        若思考为小失败或大失败，则只获得模糊的结果。
         思考需要参考剧情、物品、属性的现实情况，不涉及到的的物品和剧情不参与。
         思考时剧情暂停，不要在思考中发展剧情、透露新内容、补充关键信息。
-        不要在思考中包含游戏相关的词（如场景、判定、属性）
+        不要在思考中包含游戏相关的词（如场景、判定、属性）。
         避免与之前的思考内容重复，给出符合主角设定的思考内容。
+        思考内容中不出现其他问句，用陈述句描述。
         直接给出150字以内的思考内容文本，不要带有任何前缀后缀。
         """
         return think_context

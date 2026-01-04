@@ -224,3 +224,19 @@ class ItemInventory:
                 input("无效输入")
                 continue
         return False, ('', '', '')
+
+    def to_dict(self):
+        """
+        将物品库存转换为字典表示
+        """
+        return {
+            "inventory": self.inventory,
+            "item_repository": self.item_repository,
+        }
+
+    def from_dict(self, data):
+        """
+        从字典表示中加载物品库存
+        """
+        self.inventory = data.get("inventory", {})
+        self.item_repository = data.get("item_repository", {})

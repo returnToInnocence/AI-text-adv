@@ -1,11 +1,13 @@
 """
 简单事件系统，提供观察者模式的事件驱动功能
 """
+# Copyright (c) 2025 [687jsassd]
+# MIT License
+
 from typing import Callable
 
+
 # 指令管理器,用于注册指令和函数，当指令触发时，调用绑定的函数
-
-
 class CommandManager:
     """
     指令管理器，用于注册指令绑定到某函数，当指令触发时，调用绑定的函数，简化事件处理。

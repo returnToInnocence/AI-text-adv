@@ -101,7 +101,7 @@ class CustomConfig:
                 default_config = {
                     "api_providers": {
                         "0": {
-                            "name": "默认提供商",
+                            "name": "默认提供商(请在config/llm_api_config.json中配置)",
                             "base_url": "your-base-url",
                             "api_key": "your-api-key",
                             "model": "your-model-name"
@@ -130,7 +130,7 @@ class CustomConfig:
             print(f"转换API提供商配置时出错: {e}")
             input("按任意键继续...")
             return {0: {
-                "name": "默认",
+                "name": "默认提供商(请在config/llm_api_config.json中配置)",
                 "base_url": "your-base-url",
                 "api_key": "your-api-key",
                 "model": "your-model-name"
@@ -248,12 +248,13 @@ class CustomConfig:
             try:
                 os.system('cls' if os.name == 'nt' else 'clear')
                 print("输入你想要配置的参数:")
+                print("0.查看帮助或建议")
                 print(f"1.最大输出Token [{self.max_tokens}]")
                 print(f"2.温度 [{self.temperature}]")
                 print(f"3.频率惩罚 [{self.frequency_penalty}]")
                 print(f"4.存在惩罚 [{self.presence_penalty}]")
-                print(f"5.玩家姓名 [{self.player_name}]")
-                print(f"6.玩家故事(中途修改则重启生效) [{self.player_story}]")
+                print(f"5.玩家姓名* [{self.player_name}]")
+                print(f"6.玩家故事* [{self.player_story}]")
                 print(f"7.偏好:色情 [{self.frequency_reflect[self.porn_value]}]")
                 print(
                     f"8.偏好:特别暴力 [{self.frequency_reflect[self.violence_value]}]")
@@ -265,7 +266,8 @@ class CustomConfig:
                 print(f"12.API提供商 [{current_provider.get('name', '未配置')}]")
                 print(f"   - 模型: {current_provider.get('model', '')}")
                 print(f"   - api地址: {current_provider.get('base_url', '')}")
-                print("exit. 退出配置(完成配置)")
+                print("* 表示如果在游戏中修改，则需要重启游戏生效")
+                print("\033[93m exit. 退出配置(完成配置) \033[0m")
 
                 while True:
                     choice = input("输入你想要配置的参数ID：")
@@ -273,9 +275,22 @@ class CustomConfig:
                         is_exit = True
                         self.save_to_file()
                         break
-                    if choice.isdigit() and 1 <= int(choice) <= 12:
+                    if choice.isdigit() and 0 <= int(choice) <= 12:
                         choice = int(choice)
-                        if choice == 1:
+                        if choice == 0:
+                            os.system('cls' if os.name == 'nt' else 'clear')
+                            input(f"""
+                                  温度 用于加强随机性 建议在0.4-0.9之间(当前:{self.temperature}),高温度可能导致输出出错概率增加或者不合逻辑。
+                                  频率惩罚 用于抑制重复表述与冗余 建议在0.3-0.8之间(当前:{self.frequency_penalty})
+                                  存在惩罚 用于鼓励引入新元素与话题 建议在0.3-0.8之间(当前:{self.presence_penalty})
+                                  玩家故事 相当于玩家背景，可写个人经历、兴趣特长、目的等，会影响游戏的发展方向。
+                                  自定义附加提示词 建议写世界设定/规则、补充说明等，会影响游戏的发展方向。
+                                  可用API提供商: 如未配置，应当前往config/llm_api_config.json配置,否则无法使用。
+                                  
+                                  按任意键返回。
+                                  """)
+
+                        elif choice == 1:
                             self.max_tokens = int(input("输入最大输出Token数："))
                         elif choice == 2:
                             self.temperature = float(input("输入温度："))
