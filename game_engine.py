@@ -371,7 +371,7 @@ class GameEngine:
                         continue
                     self.situation_system.situation += value
                     self.situation_system.situation = max(
-                        0, min(self.situation_system.situation, 10))
+                        -10, min(self.situation_system.situation, 10))
                     logger.info("改变形势值: %s, 变动值: %s", command, value)
                 else:
                     logger.warning("改变形势值时未提供形势值信息: %s", command)
