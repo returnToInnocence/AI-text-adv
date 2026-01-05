@@ -594,7 +594,7 @@ def display_options(game: GameEngine):
                 print(f"[{COLOR_RED}✘{COLOR_RESET}]")
                 has_impossible = True
             elif opt["probability"] < 0.3-fix_value:
-                print(f"[{COLOR_RED}!{COLOR_RESET}]")
+                print(f"[{COLOR_MAGENTA}!{COLOR_RESET}]")
                 has_danger = True
             elif opt["probability"] < 0.65-fix_value:
                 print(f"[{COLOR_YELLOW}?{COLOR_RESET}]")

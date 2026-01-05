@@ -71,7 +71,8 @@ class GameChecks:
             probability_check_animation(
                 rand_first,
                 target_prob=first_target,
-                duration=max(0.1, first_check_anime_duration)
+                duration=max(0.1, first_check_anime_duration),
+                color_preset=1
             )
             if rand_first < first_target:
                 first_result = 1
@@ -87,7 +88,8 @@ class GameChecks:
             probability_check_animation(
                 rand_second,
                 target_prob=second_target,
-                duration=max(0.1, second_check_anime_duration)
+                duration=max(0.1, second_check_anime_duration),
+                color_preset=2
             )
             if rand_second < second_target:
                 second_result = 1
