@@ -45,8 +45,8 @@ class PromptManager:
                 {"id": 1, "text": "休息", "type": "normal", "next_preview": "你休息"}
             ],
             "commands": [
-                {"command": "change_situation", "value": -2},
-                {"command": "set_var", "value": {'黄蓉好感度': '35'}},
+                {"command": "change_situation", "value": -1},
+                {"command": "set_var", "value": {'变量名': '35'}},
                 {"command": "remove_item", "value": "道具名"},
                 {"command": "change_attr", "value": {"STR": 1}}
             ]
@@ -55,7 +55,7 @@ class PromptManager:
         1. 输出格式：不带转义符。用双引号。对话使用『』包裹。
         2. 字段详解：
            - description: 当前场景的详细描述。不要包含游戏机制、判定提示、剧情外内容。
-           - summary: 剧情摘要，保留剧情重要信息、潜在分支信息和NPC信息(尤其是行动、态度)，不超过60字。
+           - summary: 剧情摘要，保留重要信息、潜在分支、NPC等信息，如描述了方位或剧情细节则详细记录。不超过85字。
            - options: 选项的列表，每个选项为一个对象。
                 * id: 唯一标识符，从1递增的整数。
                 * text: 选项的文本内容，禁止添加如[必须]、(需力量STR>=12）等提示！
@@ -99,8 +99,8 @@ class PromptManager:
             "description": "主角推开黄蓉，自己挨了一刀",
             "summary": "主角为黄蓉挡刀",
             "commands": [
-                {"command": "change_situation", "value": -2},
-                {"command": "set_var", "value": {'黄蓉好感度': '35'}},
+                {"command": "change_situation", "value": -1},
+                {"command": "set_var", "value": {'变量名': '35'}},
                 {"command": "remove_item", "value": "道具名"},
                 {"command": "change_attr", "value": {"STR": 1}}
             ]
@@ -109,7 +109,7 @@ class PromptManager:
         1. 输出格式：不带转义符。用双引号。出现对话则使用『』包裹。
         2. 字段详解：
            - description: 当前场景的沉浸式详细描述。不要包含游戏机制、提示、剧情外内容。
-           - summary: 剧情摘要，保留剧情重要信息、潜在分支信息和NPC信息(尤其是行动、态度)，不超过60字。
+           - summary: 剧情摘要，保留重要信息、潜在分支、NPC等信息，如描述了方位或剧情细节则详细记录。不超过85字。
            - commands: 在本剧情中操作游戏数据的指令列表，每个指令为一个对象。如无指令，则不添加该字段。
                 * command: 指令类型，从['set_var','del_var,'add_item', 'remove_item', 'change_attr','change_situation','gameover']中选择。
                 * value: 指令值，格式根据command而定。
@@ -233,10 +233,9 @@ class PromptManager:
         {attribute_text}
         {vars_text}
         注意：
-        剧情用第一人称限知视角。
-        金钱一般视为变量而不是物品；
+        保证一定信息密度，避免描述太短，但不要进展太快，应该补充细节来丰富剧情。
         玩家行动可能导致游戏结束，根据剧情判断是否结束。
-        鼓励剧情引入新内容，适度增加信息密度，丰富剧情。避免一直做同一件事。
+        鼓励适时引入新内容，避免只与重复的NPC做重复的事。
         {'剧情需结合思考内容进行走向调整。' if '[思考:' in cur_desc else ''}
         玩家希望自由探索，但可以偶尔出现非强制性的事件引子。
         玩家若忽略事件，则不被卷入事件，且事件会自行发展直到结束。
@@ -245,14 +244,13 @@ class PromptManager:
         机遇、奖励等不反复出现，不出现持续深入获得更多奖励的情况。
         {'''根据剧情与逻辑合理地给出1-5个选项，对应不同分支(可含退出剧情的)，选项类型和难度不同。
         选项中预期触发的指令，禁止写在当前剧情的commands中''' if not self.is_no_options else ""}
-        
+        金钱一般视为变量而不是物品；
         实时进行：
         用指令根据剧情符合逻辑地变动物品、变量、形势、属性。
         用变量存储和更新需持久化的通用数据(如金钱、某NPC属性、好感度)，只存储数值型数据，不存储剧情信息.
         更新变量，保证变量实时跟随剧情，控制变量数量不太多。
         确保变量名严格匹配，禁止出现多个相似变量。
         移除旧或者无用的物品与变量，避免滥用或冗余。
-        更改形势值。
         
         直接给出严格从玩家动作或话(话原封不动保留)开始的新剧情，不要重复任何当前描述的内容。
 
