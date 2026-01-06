@@ -631,10 +631,12 @@ def custom_action_func(game: GameEngine, extra_datas: ExtraData, skip_inputs: Tu
     """
     自定义行动
     """
+    print(f"输入 /指令 以使用指令,如/help\n {COLOR_YELLOW}你决定{COLOR_RESET}")
     custom_action = input(
-        f"输入 /指令 以使用指令,如/help\n {COLOR_YELLOW}你决定{COLOR_RESET} \n::")
+        "::")
     if custom_action in skip_inputs:
-        input(f"{COLOR_RED}提示：为了避免误输入，建议使用 /+指令 来进行指令{COLOR_RESET}\n指令将继续执行，按任意键继续")
+        print(f"{COLOR_RED}提示：为了避免误输入，建议使用 /+指令 来进行指令{COLOR_RESET}\n指令将继续执行，按任意键继续")
+        input()
         return custom_action
     if custom_action.startswith('/'):
         cmd_input = custom_action[1:]

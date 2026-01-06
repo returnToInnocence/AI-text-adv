@@ -2,3 +2,5 @@
 disable=
     broad-exception-caught,
     line-too-long,
+    too-many-lines,
+    redefined-builtin
