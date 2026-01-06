@@ -235,6 +235,9 @@ class GameEngine:
                 logger.warning("未能解析描述??\n %s", json_response)
                 input(f"未能解析描述?? 按键重试 {json_response}\n")
                 return None
+            # 为每一句添加换行
+            self.current_description = self.current_description.replace(
+                "。", "。\n")
             if self.current_description:
                 self.history_simple_summaries.append(
                     json_response.get("summary", ""))

@@ -4,7 +4,385 @@
 # Copyright (c) 2025 [687jsassd]
 # MIT License
 # 模块化提示词管理器
-from typing import Optional
+from enum import Enum
+from typing import Dict, List, Optional
+from dataclasses import dataclass
+import copy
+
+
+# 提示词部分
+class PromptSection(Enum):
+    """提示词各部分"""
+    PRE_PROMPT = 1  # 前置提示词
+    BODY_PROMPT = 2  # 主体提示词
+    WORLD_BOOK = 3  # 世界书
+    USER_INPUT = 4  # 用户输入
+    POST_PROMPT = 5  # 后置提示词
+
+
+# 提示词结构体
+@dataclass
+class PromptFragment:
+    """提示词片段"""
+    module_id: str
+    content: str
+    is_system: bool = False
+
+
+# 重制的提示词管理器
+class PromptManagerRebuild:
+    """提示词管理器(重制,利用枚举进行管理)"""
+
+    def __init__(self):
+        # 初始化每个部分的字典，键为模块ID，值为提示词片段
+        self._sections: Dict[PromptSection, Dict[str, PromptFragment]] = {
+            section: {} for section in PromptSection
+        }
+        # 记录每个部分的顺序
+        self._section_orders: Dict[PromptSection, List[str]] = {
+            section: [] for section in PromptSection
+        }
+        self.localvars = {}  # 管理器本身的变量组
+        self.gamevars = {}  # 游戏的变量组，当获取提示词时，根据其内容动态替换
+
+    def load_init_sections(self, init_contents: Dict[PromptSection, str]) -> None:
+        """
+        添加初始各部分的提示词片段
+
+        Args:
+            init_contents: 包含各部分的初始提示词，键为PromptSection，值为提示词内容
+        """
+        for section, content in init_contents.items():
+            if section in self._sections:
+                system_fragment = PromptFragment(
+                    module_id="system",
+                    content=content,
+                    is_system=True
+                )
+                self._sections[section]["system"] = system_fragment
+                # 将system片段插入到顺序列表的第一个位置
+                self._section_orders[section] = ["system"]
+
+    def add_prompt(self, section: PromptSection, module_id: str, content: str,
+                   insert_after: Optional[str] = None) -> bool:
+        """
+        添加提示词片段
+
+        Args:
+            section: 提示词部分
+            module_id: 提供模块的ID
+            content: 提示词内容
+            insert_after: 可选，将该片段插入到指定模块之后
+
+        Returns:
+            bool: 是否添加成功
+        """
+        if module_id == "system":
+            print("错误: 不允许使用'system'作为模块ID")
+            return False
+
+        if module_id in self._sections[section]:
+            print(f"警告: 模块 '{module_id}' 在部分 {section.name} 中已存在，将更新内容")
+            # 更新已存在模块的内容
+            self._sections[section][module_id].content = content
+            return True
+
+        # 创建新片段
+        fragment = PromptFragment(
+            module_id=module_id,
+            content=content,
+            is_system=False
+        )
+
+        # 添加到片段字典
+        self._sections[section][module_id] = fragment
+
+        # 更新顺序
+        order_list = self._section_orders[section]
+
+        if insert_after is not None:
+            if insert_after not in order_list:
+                print(f"错误: 指定的插入位置模块 '{insert_after}' 不存在")
+                # 添加到末尾
+                order_list.append(module_id)
+            else:
+                # 找到插入位置
+                try:
+                    index = order_list.index(insert_after) + 1
+                    order_list.insert(index, module_id)
+                except ValueError:
+                    order_list.append(module_id)
+        else:
+            # 添加到system之后（即第一个非system位置）
+            if len(order_list) > 0 and order_list[0] == "system":
+                order_list.insert(1, module_id)
+            else:
+                order_list.append(module_id)
+
+        return True
+
+    def remove_prompt(self, section: PromptSection, module_id: str) -> bool:
+        """
+        删除提示词片段
+
+        Args:
+            section: 提示词部分
+            module_id: 要删除的模块ID
+
+        Returns:
+            bool: 是否删除成功
+        """
+        if module_id == "system":
+            print("错误: 不允许删除system提供的提示词")
+            return False
+
+        if module_id not in self._sections[section]:
+            print(f"错误: 模块 '{module_id}' 在部分 {section.name} 中不存在")
+            return False
+
+        # 从字典和顺序列表中删除
+        del self._sections[section][module_id]
+        self._section_orders[section].remove(module_id)
+        return True
+
+    def move_prompt(self, section: PromptSection, module_id: str,
+                    target_module_id: str, before: bool = True) -> bool:
+        """
+        调整提示词片段的顺序
+
+        Args:
+            section: 提示词部分
+            module_id: 要移动的模块ID
+            target_module_id: 目标位置模块ID
+            before: True表示移动到目标模块之前，False表示移动到之后
+
+        Returns:
+            bool: 是否移动成功
+        """
+        if module_id == "system":
+            print("错误: 不允许移动system提供的提示词")
+            return False
+
+        if target_module_id == "system" and before:
+            print("错误: 不允许将提示词调整到system提示词之上")
+            return False
+
+        if module_id not in self._section_orders[section]:
+            print(f"错误: 模块 '{module_id}' 在部分 {section.name} 中不存在")
+            return False
+
+        if target_module_id not in self._section_orders[section]:
+            print(f"错误: 目标模块 '{target_module_id}' 在部分 {section.name} 中不存在")
+            return False
+
+        order_list = self._section_orders[section]
+
+        # 从当前位置移除
+        order_list.remove(module_id)
+
+        # 找到新位置
+        target_index = order_list.index(target_module_id)
+        if not before:
+            target_index += 1
+
+        # 插入到新位置
+        order_list.insert(target_index, module_id)
+        return True
+
+    def get_section_content(self, section: PromptSection) -> str:
+        """
+        获取指定部分的完整提示词
+
+        Args:
+            section: 提示词部分
+
+        Returns:
+            str: 该部分的完整提示词
+        """
+        order_list = self._section_orders[section]
+        fragments = []
+
+        for module_id in order_list:
+            if module_id in self._sections[section]:
+                fragment = self._sections[section][module_id]
+                fragments.append(fragment.content)
+
+        return "\n".join(fragments)
+
+    def get_full_prompt(self, user_input: Optional[str] = None) -> str:
+        """
+        获取完整提示词
+
+        Args:
+            user_input: 可选的用户输入，将替换USER_INPUT部分
+
+        Returns:
+            str: 完整的提示词
+        """
+        full_prompt_parts = []
+
+        for section in PromptSection:
+            if section == PromptSection.USER_INPUT and user_input is not None:
+                # 使用提供的用户输入
+                full_prompt_parts.append(user_input)
+            else:
+                section_content = self.get_section_content(section)
+                if section_content:
+                    full_prompt_parts.append(section_content)
+
+        return "\n".join(full_prompt_parts)
+
+    def get_section_fragments(self, section: PromptSection) -> List[PromptFragment]:
+        """
+        获取指定部分的所有片段（按顺序）
+
+        Args:
+            section: 提示词部分
+
+        Returns:
+            List[PromptFragment]: 按顺序排列的提示词片段列表
+        """
+        order_list = self._section_orders[section]
+        fragments = []
+
+        for module_id in order_list:
+            if module_id in self._sections[section]:
+                fragments.append(self._sections[section][module_id])
+
+        return fragments
+
+    def update_prompt(self, section: PromptSection, module_id: str, content: str) -> bool:
+        """
+        更新提示词片段内容
+
+        Args:
+            section: 提示词部分
+            module_id: 模块ID
+            content: 新的提示词内容
+
+        Returns:
+            bool: 是否更新成功
+        """
+        if module_id not in self._sections[section]:
+            print(f"错误: 模块 '{module_id}' 在部分 {section.name} 中不存在")
+            return False
+
+        if module_id == "system":
+            print("警告: 更新system提示词内容")
+
+        self._sections[section][module_id].content = content
+        return True
+
+    def clear_section(self, section: PromptSection) -> None:
+        """
+        清空指定部分的所有提示词片段(将保留system提示词)
+
+        Args:
+            section: 提示词部分
+        """
+        system_fragment = self._sections[section].get("system")
+        self._sections[section].clear()
+        self._section_orders[section].clear()
+
+        if system_fragment:
+            self._sections[section]["system"] = system_fragment
+            self._section_orders[section] = ["system"]
+
+    def get_section_order(self, section: PromptSection) -> List[str]:
+        """
+        获取指定部分的顺序列表
+
+        Args:
+            section: 提示词部分
+
+        Returns:
+            List[str]: 模块ID的顺序列表
+        """
+        return self._section_orders[section].copy()
+
+    def copy_section(self, from_section: PromptSection, to_section: PromptSection) -> None:
+        """
+        复制一个部分的配置到另一个部分
+
+        Args:
+            from_section: 源部分
+            to_section: 目标部分
+        """
+        # 深拷贝片段
+        self._sections[to_section] = copy.deepcopy(
+            self._sections[from_section])
+        # 深拷贝顺序
+        self._section_orders[to_section] = copy.deepcopy(
+            self._section_orders[from_section])
+
+    def __str__(self) -> str:
+        """返回管理器的字符串表示"""
+        output = []
+        for section in PromptSection:
+            fragments = self.get_section_fragments(section)
+            if fragments:
+                output.append(f"=== {section.name} ===")
+                for fragment in fragments:
+                    marker = "[S]" if fragment.is_system else ""
+                    output.append(
+                        f"  {fragment.module_id}{marker}: {fragment.content[:50]}...")
+        return "\n".join(output)
+
+    def to_dict(self) -> Dict:
+        """
+        将管理器状态转换为字典
+
+        Returns:
+            Dict: 包含所有配置的字典
+        """
+        result = {}
+        for section in PromptSection:
+            section_dict = {}
+            fragments = self.get_section_fragments(section)
+            for fragment in fragments:
+                section_dict[fragment.module_id] = {
+                    "content": fragment.content,
+                    "is_system": fragment.is_system
+                }
+            result[section.name] = section_dict
+        return result
+
+    @classmethod
+    def from_dict(cls, data: Dict) -> "PromptManagerRebuild":
+        """
+        从字典加载管理器状态
+
+        Args:
+            data: 包含管理器配置的字典，应与to_dict()输出的格式相同
+
+        Returns:
+            PromptManagerRebuild: 加载后的提示词管理器实例
+        """
+        manager = cls()
+
+        for section_name, section_data in data.items():
+            try:
+                # 将字符串转换为PromptSection枚举
+                section = PromptSection[section_name]
+            except KeyError:
+                print(f"警告: 未知的提示词部分 '{section_name}'，跳过")
+                continue
+
+            # 清空当前部分
+            manager._sections[section].clear()
+            manager._section_orders[section].clear()
+
+            # 按字典中的顺序添加片段
+            for module_id, fragment_data in section_data.items():
+                fragment = PromptFragment(
+                    module_id=module_id,
+                    content=fragment_data["content"],
+                    is_system=fragment_data.get("is_system", False)
+                )
+                manager._sections[section][module_id] = fragment
+                manager._section_orders[section].append(module_id)
+
+        return manager
 
 
 class PromptManager:
